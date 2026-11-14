@@ -328,7 +328,8 @@ function NumberField(props: {
       </div>
       <div
         className={clsx(
-          'flex items-center rounded-lg border bg-harbor transition-colors focus-within:border-lantern',
+          // The whole field (input + unit) shows focus, instead of an outline around the input alone.
+          'flex items-center rounded-lg border bg-harbor transition-colors focus-within:border-lantern focus-within:ring-2 focus-within:ring-lantern/30',
           issue ? 'border-fall' : 'border-rule',
         )}
       >
@@ -344,7 +345,7 @@ function NumberField(props: {
           placeholder="0.00"
           aria-invalid={issue ? true : undefined}
           aria-describedby={issue ? errorId : undefined}
-          className="num min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-muted/60"
+          className="num min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base outline-none focus-visible:outline-none placeholder:text-muted/60"
           dir="ltr"
         />
         <span className="pe-3 text-sm text-muted">{unit}</span>
