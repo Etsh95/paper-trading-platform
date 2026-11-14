@@ -1,0 +1,150 @@
+name: CI/CD
+
+# Every push and pull request is built and tested. Pushes to main are also deployed to Azure.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Superseded PR runs are cancelled; deployments always run to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Backend (build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: backend/global.json
+      - run: dotnet restore
+      - run: dotnet build -c Release --no-restore
+      - run: dotnet test -c Release --no-build --logger "trx;LogFileName=results.trx" --collect "XPlat Code Coverage"
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-results
+          path: backend/tests/**/TestResults/**
+
+  frontend:
+    name: Frontend (lint + typecheck + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  deploy-api:
+    name: Deploy API (Container Apps)
+    # Skipped until infra/bootstrap.sh has configured the Azure variables (e.g. on forks).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # OIDC: exchange a short-lived GitHub token for Azure access; no stored credentials
+    env:
+      IMAGE: ${{ vars.ACR_LOGIN_SERVER }}/papertrading-api:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: docker/setup-buildx-action@v4
+      - run: az acr login --name "${{ vars.ACR_NAME }}"
+      - uses: docker/build-push-action@v7
+        with:
+          context: backend
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Roll out new revision
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp update \
+            --name "${{ vars.API_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "$IMAGE" \
+            --only-show-errors -o none
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "${{ vars.API_URL }}/health/live" >/dev/null; then
+              curl -fsS "${{ vars.API_URL }}/api/instruments" >/dev/null && echo "API is up" && exit 0
+            fi
+            sleep 5
+          done
+          echo "API did not become healthy" && exit 1
+
+  deploy-web:
+    name: Deploy frontend (Static Web Apps)
+    needs: [deploy-api]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.API_URL }}
+        run: |
+          npm ci
+          npm run build
+          # Lock the Content Security Policy to this API's origin (HTTPS + WSS for SignalR).
+          api_host="${VITE_API_URL#https://}"
+          sed -i "s#__API_ORIGIN__#https://${api_host}#; s#__API_WS_ORIGIN__#wss://${api_host}#" dist/staticwebapp.config.json
+          grep -q "__API_" dist/staticwebapp.config.json && { echo "CSP placeholders not replaced"; exit 1; } || true
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Fetch deployment token at run time (never stored in GitHub)
+        run: |
+          token=$(az staticwebapp secrets list --name "${{ vars.WEB_APP_NAME }}" --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          echo "SWA_TOKEN=$token" >> "$GITHUB_ENV"
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ env.SWA_TOKEN }}
+          action: upload
+          app_location: frontend/dist
+          skip_app_build: true
+          skip_api_build: true
+      - name: Smoke test
+        run: curl -fsS "${{ vars.WEB_URL }}/" | grep -q "<div id=\"root\">"
