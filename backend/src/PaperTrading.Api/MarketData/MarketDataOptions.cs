@@ -15,6 +15,12 @@ public sealed class MarketDataOptions
 
     public int FailuresBeforeFallback { get; set; } = 3;
 
+    /// <summary>Give up on a connection attempt after this long.</summary>
+    public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>While on the fallback feed, try the primary again this often.</summary>
+    public TimeSpan RetryPrimaryAfter { get; set; } = TimeSpan.FromMinutes(2);
+
     /// <summary>Reconnect if the socket goes silent for this long.</summary>
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromSeconds(30);
 

@@ -26,11 +26,12 @@ public sealed class BinanceQuoteSource(IOptions<MarketDataOptions> options, Time
         using var socket = new ClientWebSocket();
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
 
-        // Linked token doubles as an idle watchdog: if nothing arrives for IdleTimeout, the receive is cancelled.
+        // Linked token doubles as a watchdog: a short deadline for connecting, then IdleTimeout between messages.
         using var watchdog = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        watchdog.CancelAfter(settings.IdleTimeout);
+        watchdog.CancelAfter(settings.ConnectTimeout);
 
         await socket.ConnectAsync(uri, watchdog.Token);
+        watchdog.CancelAfter(settings.IdleTimeout);
         logger.LogInformation("Connected to Binance stream for {Count} symbols", instruments.Count);
 
         var buffer = new ArrayBufferWriter<byte>(4096);

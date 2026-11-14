@@ -1,0 +1,22 @@
+# Runs the whole platform locally: http://localhost:8080
+#   docker compose up --build
+services:
+  api:
+    build: ./backend
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Binance by default; falls back to the mock feed automatically if Binance is unreachable.
+      MarketData__Provider: ${MARKET_DATA_PROVIDER:-Binance}
+      # Optional. If unset, the API generates an ephemeral signing key (sessions reset on restart).
+      Auth__SigningKey: ${AUTH_SIGNING_KEY:-}
+    ports:
+      - "5080:8080"
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
