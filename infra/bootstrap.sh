@@ -76,15 +76,26 @@ fi
 az ad sp show --id "$APP_ID" -o none 2>/dev/null || az ad sp create --id "$APP_ID" -o none
 SP_OBJECT_ID=$(az ad sp show --id "$APP_ID" --query id -o tsv)
 
-SUBJECT="repo:$REPO:environment:$GH_ENVIRONMENT"
-if [[ -z "$(az ad app federated-credential list --id "$APP_ID" --query "[?subject=='$SUBJECT'].name" -o tsv)" ]]; then
-  az ad app federated-credential create --id "$APP_ID" -o none --parameters "{
-    \"name\": \"github-$GH_ENVIRONMENT\",
-    \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"$SUBJECT\",
-    \"audiences\": [\"api://AzureADTokenExchange\"]
-  }"
-fi
+# GitHub's OIDC subject comes in two shapes: the classic "repo:owner/name:..." and the newer format that pins the
+# immutable owner and repository IDs ("repo:owner@123/name@456:..."), which survives renames and can't be
+# claimed by a re-created repo of the same name. Trust both, but only for this repo's production environment.
+OWNER_ID=$(gh api "repos/$REPO" -q .owner.id)
+REPO_ID=$(gh api "repos/$REPO" -q .id)
+OWNER=${REPO%%/*}
+NAME=${REPO#*/}
+add_subject() {
+  local name="$1" subject="$2"
+  if [[ -z "$(az ad app federated-credential list --id "$APP_ID" --query "[?subject=='$subject'].name" -o tsv)" ]]; then
+    az ad app federated-credential create --id "$APP_ID" -o none --parameters "{
+      \"name\": \"$name\",
+      \"issuer\": \"https://token.actions.githubusercontent.com\",
+      \"subject\": \"$subject\",
+      \"audiences\": [\"api://AzureADTokenExchange\"]
+    }"
+  fi
+}
+add_subject "github-$GH_ENVIRONMENT" "repo:$REPO:environment:$GH_ENVIRONMENT"
+add_subject "github-$GH_ENVIRONMENT-ids" "repo:$OWNER@$OWNER_ID/$NAME@$REPO_ID:environment:$GH_ENVIRONMENT"
 
 assign() {
   local role="$1" scope="$2"
