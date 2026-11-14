@@ -29,13 +29,19 @@ export const useOrders = (status?: OrderStatus) =>
 
 export const useTrades = () => useQuery({ queryKey: keys.trades, queryFn: api.trades, refetchInterval: 30_000 })
 
+/**
+ * Refetches account data. Returns a promise that settles once the refetch is done: mutations return it from
+ * onSettled, so they only complete after balances are current. Otherwise the ticket could validate the next
+ * order against stale numbers (e.g. still-reserved coins right after a cancel) on a slow connection.
+ */
 export function useInvalidateAccount() {
   const client = useQueryClient()
-  return () => {
-    void client.invalidateQueries({ queryKey: keys.portfolio })
-    void client.invalidateQueries({ queryKey: ['orders'] })
-    void client.invalidateQueries({ queryKey: keys.trades })
-  }
+  return () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: keys.portfolio }),
+      client.invalidateQueries({ queryKey: ['orders'] }),
+      client.invalidateQueries({ queryKey: keys.trades }),
+    ])
 }
 
 export function usePlaceOrder() {
