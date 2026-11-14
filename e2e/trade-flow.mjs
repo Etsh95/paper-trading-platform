@@ -1,6 +1,8 @@
 // End-to-end trade flow in a real browser (installed Chrome, headless).
 //   npm install && npm test                        -> against docker compose on :8080
 //   BASE_URL=https://... npm test                  -> against a deployment
+//   LATENCY_MS=400 npm test                        -> add delay to every API call; exposes races that only
+//                                                     show up on real networks (two were found this way)
 import { chromium } from 'playwright-core'
 // Target: docker compose (default) or the deployed site, e.g. BASE_URL=https://<app>.azurestaticapps.net
 const base = process.env.BASE_URL ?? 'http://localhost:8080'
@@ -9,6 +11,8 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' })
 const problems = []
 page.on('console', (m) => (m.type() === 'error' || /Content Security Policy|Refused/i.test(m.text())) && problems.push(m.text()))
+const latency = Number(process.env.LATENCY_MS ?? 0)
+if (latency > 0) await page.route('**/api/**', async (route) => { await new Promise((r) => setTimeout(r, latency)); await route.continue() })
 page.on('pageerror', (e) => problems.push(String(e)))
 const wsUrls = []
 page.on('websocket', (ws) => wsUrls.push(ws.url().replace(/access_token=[^&]+/, 'access_token=…')))

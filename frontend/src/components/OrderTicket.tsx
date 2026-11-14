@@ -35,10 +35,11 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
   const [touched, setTouched] = useState({ quantity: false, limitPrice: false })
   const [attempted, setAttempted] = useState(false)
   const quantityRef = useRef<HTMLInputElement>(null)
-  const latestQuantity = useRef(quantity)
+  // Bumped on every edit, so a settling order can tell whether the user has started on the next one.
+  const editVersion = useRef(0)
   useEffect(() => {
-    latestQuantity.current = quantity
-  }, [quantity])
+    editVersion.current += 1
+  }, [side, type, quantity, limitPrice])
   const priceRef = useRef<HTMLInputElement>(null)
   const ids = { quantity: useId(), price: useId(), symbol: useId(), form: useId() }
 
@@ -107,7 +108,7 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
 
     // One key per user action. The client reuses it on a network retry; the server dedupes on it.
     const idempotencyKey = crypto.randomUUID()
-    const submittedQuantity = quantity
+    const versionAtSubmit = editVersion.current
     try {
       const { order } = await place.mutateAsync({
         key: idempotencyKey,
@@ -121,8 +122,9 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
       if (order.status === 'Open') toast(t(side === 'Buy' ? 'toast.limitPlacedBuy' : 'toast.limitPlacedSell', params))
       // Fills are announced by the realtime stream; only announce here if it's down.
       else if (order.status === 'Filled' && hub !== 'live') toast.success(t(side === 'Buy' ? 'toast.bought' : 'toast.sold', params))
-      // Clear only what was submitted: the user may already be typing the next order while this one settles.
-      if (latestQuantity.current === submittedQuantity) {
+      // Clear only if nothing was edited since submitting: the user may already be entering the next order
+      // (possibly with the same quantity) while this one settles.
+      if (editVersion.current === versionAtSubmit) {
         setQuantity('')
         setTouched((t) => ({ ...t, quantity: false }))
         setAttempted(false)
