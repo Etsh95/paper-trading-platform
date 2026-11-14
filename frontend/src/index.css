@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+
+/* Tokens (see docs/DESIGN.md). Light by default, dark via system preference or explicit choice. */
+:root {
+  --harbor: #f3f6fa;
+  --deck: #ffffff;
+  --rule: #dce3ec;
+  --fog: #14243a;
+  --muted: color-mix(in oklab, var(--fog) 62%, var(--deck));
+  --lantern: #b57a06;
+  --lantern-ink: #ffffff;
+  --rise: #0b8a74;
+  --fall: #cc3d4a;
+  --on-signal: #ffffff;
+  --hover: color-mix(in oklab, var(--fog) 5%, transparent);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --harbor: #0f1b2d;
+    --deck: #15253b;
+    --rule: #22354f;
+    --fog: #e4eaf3;
+    --lantern: #f2b33d;
+    --lantern-ink: #1a1405;
+    --rise: #2cc0a5;
+    --fall: #f0656f;
+    --on-signal: #0f1b2d;
+    --hover: color-mix(in oklab, var(--fog) 6%, transparent);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --harbor: #0f1b2d;
+  --deck: #15253b;
+  --rule: #22354f;
+  --fog: #e4eaf3;
+  --lantern: #f2b33d;
+  --lantern-ink: #1a1405;
+  --rise: #2cc0a5;
+  --fall: #f0656f;
+  --on-signal: #0f1b2d;
+  --hover: color-mix(in oklab, var(--fog) 6%, transparent);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-harbor: var(--harbor);
+  --color-deck: var(--deck);
+  --color-rule: var(--rule);
+  --color-fog: var(--fog);
+  --color-muted: var(--muted);
+  --color-lantern: var(--lantern);
+  --color-lantern-ink: var(--lantern-ink);
+  --color-rise: var(--rise);
+  --color-fall: var(--fall);
+  --color-hover: var(--hover);
+  --color-on-signal: var(--on-signal);
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.75rem;
+}
+
+html {
+  background: var(--harbor);
+  color: var(--fog);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+  background: var(--harbor);
+}
+
+/* Arabic glyphs sit visually smaller at the same size; nudge line height for the script. */
+:root[lang="ar"] body {
+  line-height: 1.65;
+}
+
+/* Numbers: tabular so columns don't jitter while prices tick; always laid out LTR, even in Arabic. */
+.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+:focus-visible {
+  outline: 2px solid var(--lantern);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--lantern) 35%, transparent);
+}
+
+/*
+ * Price ticks: the text keeps the colour of its last move (as on real exchanges), and each change adds a short,
+ * faint pulse. Short enough that a feed updating several times a second never leaves cells permanently tinted.
+ */
+@keyframes pulse-rise {
+  from { background-color: color-mix(in oklab, var(--rise) 18%, transparent); }
+  to { background-color: transparent; }
+}
+@keyframes pulse-fall {
+  from { background-color: color-mix(in oklab, var(--fall) 18%, transparent); }
+  to { background-color: transparent; }
+}
+.flash-up { color: var(--rise); animation: pulse-rise 420ms ease-out; }
+.flash-down { color: var(--fall); animation: pulse-fall 420ms ease-out; }
+
+/* Rolling digits fade out at the edges of their line while they move. */
+.digit-window {
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-up, .flash-down { animation: none; }
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}
+
+/* Remove number input spinners (we use text inputs with inputmode=decimal, but just in case). */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

@@ -21,15 +21,21 @@ public sealed class MarketDataService(
     {
         var settings = options.Value;
         var all = sources.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
-        if (!all.TryGetValue(settings.Provider, out var current))
+        if (!all.TryGetValue(settings.Provider, out var primary))
             throw new InvalidOperationException($"Unknown market data provider '{settings.Provider}'. Known: {string.Join(", ", all.Keys)}");
 
+        var current = primary;
         var failures = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
+            // On the fallback feed, run it for a while and then give the primary another chance.
+            var onFallback = current != primary;
+            using var run = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            if (onFallback) run.CancelAfter(settings.RetryPrimaryAfter);
+
             try
             {
-                await foreach (var quote in current.StreamAsync(InstrumentCatalog.Default, stoppingToken))
+                await foreach (var quote in current.StreamAsync(InstrumentCatalog.Default, run.Token))
                 {
                     failures = 0;
                     cache.Update(quote, current.Name);
@@ -40,6 +46,13 @@ public sealed class MarketDataService(
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
+            }
+            catch (OperationCanceledException) when (onFallback && run.IsCancellationRequested)
+            {
+                logger.LogInformation("Retrying primary feed {Source}", primary.Name);
+                current = primary;
+                failures = 0;
+                continue;
             }
             catch (Exception ex)
             {

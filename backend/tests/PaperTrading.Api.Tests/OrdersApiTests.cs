@@ -229,6 +229,19 @@ public class OrdersApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Config_exposes_fee_rate_and_instruments_expose_filters()
+    {
+        var client = factory.CreateClient();
+
+        var config = await (await client.GetAsync("/api/config")).JsonAsync();
+        var instruments = await (await client.GetAsync("/api/instruments")).JsonAsync();
+
+        Assert.Equal("0.001", config.GetProperty("feeRate").GetString());
+        Assert.Contains(instruments.EnumerateArray(), i => i.GetProperty("symbol").GetString() == "BTCUSDT"
+            && i.GetProperty("stepSize").GetString() == "0.00001");
+    }
+
+    [Fact]
     public async Task Health_endpoints_respond()
     {
         var client = factory.CreateClient();
