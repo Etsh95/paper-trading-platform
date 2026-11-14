@@ -99,9 +99,13 @@ body {
   unicode-bidi: isolate;
 }
 
-:focus-visible {
-  outline: 2px solid var(--lantern);
-  outline-offset: 2px;
+/* In the base layer so component utilities (e.g. a field that shows focus on its wrapper) can override it;
+   unlayered CSS would beat every Tailwind utility regardless of specificity. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--lantern);
+    outline-offset: 2px;
+  }
 }
 
 ::selection {
