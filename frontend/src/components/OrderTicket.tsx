@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError } from '../api/client'
@@ -35,6 +35,10 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
   const [touched, setTouched] = useState({ quantity: false, limitPrice: false })
   const [attempted, setAttempted] = useState(false)
   const quantityRef = useRef<HTMLInputElement>(null)
+  const latestQuantity = useRef(quantity)
+  useEffect(() => {
+    latestQuantity.current = quantity
+  }, [quantity])
   const priceRef = useRef<HTMLInputElement>(null)
   const ids = { quantity: useId(), price: useId(), symbol: useId(), form: useId() }
 
@@ -103,6 +107,7 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
 
     // One key per user action. The client reuses it on a network retry; the server dedupes on it.
     const idempotencyKey = crypto.randomUUID()
+    const submittedQuantity = quantity
     try {
       const { order } = await place.mutateAsync({
         key: idempotencyKey,
@@ -116,9 +121,12 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
       if (order.status === 'Open') toast(t(side === 'Buy' ? 'toast.limitPlacedBuy' : 'toast.limitPlacedSell', params))
       // Fills are announced by the realtime stream; only announce here if it's down.
       else if (order.status === 'Filled' && hub !== 'live') toast.success(t(side === 'Buy' ? 'toast.bought' : 'toast.sold', params))
-      setQuantity('')
-      setTouched({ quantity: false, limitPrice: false })
-      setAttempted(false)
+      // Clear only what was submitted: the user may already be typing the next order while this one settles.
+      if (latestQuantity.current === submittedQuantity) {
+        setQuantity('')
+        setTouched((t) => ({ ...t, quantity: false }))
+        setAttempted(false)
+      }
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'unknown'
       toast.error(t('toast.rejected'), { description: t(`reasons.${code}`, { defaultValue: t('reasons.unknown') }) })
