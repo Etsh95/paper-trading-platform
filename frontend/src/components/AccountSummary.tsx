@@ -1,15 +1,35 @@
 import clsx from 'clsx'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLanguage } from '../i18n'
 import { formatMoney, formatPercent, signOf } from '../lib/format'
 import { useLiveValuation } from '../state/valuation'
 import { RollingNumber } from './RollingNumber'
 
+/**
+ * Holds a fast-changing value steady for `ms` between updates. Account value re-marks on every price tick
+ * (several per second); rolling digits that never come to rest read as noise rather than information.
+ */
+function useSteadyValue(value: string, ms: number) {
+  const [shown, setShown] = useState(value)
+  const last = useRef(0)
+  useEffect(() => {
+    const wait = Math.max(0, last.current + ms - Date.now())
+    const id = setTimeout(() => {
+      last.current = Date.now()
+      setShown(value)
+    }, wait)
+    return () => clearTimeout(id)
+  }, [value, ms])
+  return shown
+}
+
 /** The page's one bold element: account value with rolling digits. */
 export function AccountSummary({ detailed = false }: { detailed?: boolean }) {
   const { t } = useTranslation()
   const { language } = useLanguage()
   const v = useLiveValuation()
+  const equityText = useSteadyValue(v ? formatMoney(v.equity, language) : '', 1_000)
 
   if (!v) return <SummarySkeleton />
 
@@ -28,7 +48,7 @@ export function AccountSummary({ detailed = false }: { detailed?: boolean }) {
       <div>
         <h2 className="text-sm text-muted">{t('summary.equity')}</h2>
         <p className="mt-1 text-2xl leading-tight font-semibold tracking-tight">
-          <RollingNumber text={formatMoney(v.equity, language)} />
+          <RollingNumber text={equityText || formatMoney(v.equity, language)} />
           <span className="ms-2 text-lg font-normal text-muted">USDT</span>
         </p>
         <p className={clsx('mt-1 text-base font-medium', pnlTone)}>
