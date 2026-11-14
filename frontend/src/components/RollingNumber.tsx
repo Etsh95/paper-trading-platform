@@ -30,7 +30,7 @@ function Digit({ digit }: { digit: number }) {
         className="flex flex-col"
         initial={false}
         animate={{ y: `${-digit * 10}%` }}
-        transition={{ type: 'spring', stiffness: 210, damping: 26, mass: 0.9 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 34, mass: 0.7 }}
       >
         {DIGITS.map((d) => (
           <span key={d} style={{ height: '1lh' }}>
