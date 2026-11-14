@@ -1,0 +1,11 @@
+{
+  "name": "paperdesk-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node trade-flow.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}
