@@ -1,17 +1,20 @@
 # syntax=docker/dockerfile:1
 
 # ---- build -------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# The SDK stage runs on the build machine's own architecture and cross-compiles for the target
+# (e.g. an arm64 Mac producing an amd64 image for x86 servers), so no slow CPU emulation is involved.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG TARGETARCH
 WORKDIR /src
 
 # Restore first, from project files only, so the layer is cached until dependencies change.
 COPY Directory.Build.props ./
 COPY src/PaperTrading.Core/PaperTrading.Core.csproj src/PaperTrading.Core/
 COPY src/PaperTrading.Api/PaperTrading.Api.csproj src/PaperTrading.Api/
-RUN dotnet restore src/PaperTrading.Api/PaperTrading.Api.csproj
+RUN dotnet restore src/PaperTrading.Api/PaperTrading.Api.csproj -a $TARGETARCH
 
 COPY src/ src/
-RUN dotnet publish src/PaperTrading.Api/PaperTrading.Api.csproj -c Release -o /app --no-restore /p:UseAppHost=false
+RUN dotnet publish src/PaperTrading.Api/PaperTrading.Api.csproj -c Release -a $TARGETARCH -o /app --no-restore /p:UseAppHost=false
 
 # ---- runtime -----------------------------------------------------------------
 # Chiseled: no shell, no package manager, runs as non-root by default. Small attack surface.
