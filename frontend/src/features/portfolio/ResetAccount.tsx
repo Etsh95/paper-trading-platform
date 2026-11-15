@@ -21,6 +21,8 @@ export function ResetAccount() {
     try {
       await renewSession('created')
       toast(t('toast.newAccount'))
+    } catch {
+      toast.error(t('toast.newAccountFailed'))
     } finally {
       setBusy(false)
       setArmed(false)

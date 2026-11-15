@@ -18,4 +18,11 @@ describe('quoteStore', () => {
     expect(live?.bid).toBe('102')
     expect(live?.direction).toBe('up')
   })
+
+  it('ignores feed status from a snapshot older than what the live stream reported', () => {
+    const before = quoteStore.get().status
+    quoteStore.setStatus({ source: 'Mock', connected: false, lastQuoteAt: '2026-01-01T00:00:00.500Z' })
+
+    expect(quoteStore.get().status).toEqual(before)
+  })
 })
