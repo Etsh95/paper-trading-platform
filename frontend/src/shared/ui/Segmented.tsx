@@ -41,7 +41,8 @@ export function Segmented<T extends string>(props: {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const rtl = getComputedStyle(e.currentTarget).direction === 'rtl'
-    const step = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1, ArrowDown: 1, ArrowUp: -1 }[e.key]
+    const steps: Record<string, number> = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1, ArrowDown: 1, ArrowUp: -1 }
+    const step = steps[e.key]
     if (!step) return
     e.preventDefault()
     const index = options.findIndex((o) => o.value === value)

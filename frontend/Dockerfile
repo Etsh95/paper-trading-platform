@@ -6,9 +6,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-# Empty = same origin (nginx proxies /api and /hubs). Set to the API URL when hosting the API elsewhere.
-ARG VITE_API_URL=
-ENV VITE_API_URL=$VITE_API_URL
+# This image is the same-origin setup: nginx serves the app and proxies /api and /hubs to the API container, so the
+# build uses relative URLs (no VITE_API_URL). A separately hosted API is the Static Web Apps deployment instead.
 RUN npm run build
 
 # Unprivileged nginx: runs as a non-root user and listens on 8080.

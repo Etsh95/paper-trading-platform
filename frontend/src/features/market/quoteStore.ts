@@ -22,6 +22,9 @@ interface Snapshot {
   receivedAt: number | null
 }
 
+const isNewer = (candidate: Quote, current: Quote) =>
+  candidate.timestamp !== current.timestamp && Date.parse(candidate.timestamp) >= Date.parse(current.timestamp)
+
 let snapshot: Snapshot = { quotes: new Map(), status: { source: null, connected: false, lastQuoteAt: null }, receivedAt: null }
 const listeners = new Set<() => void>()
 
@@ -38,7 +41,8 @@ export const quoteStore = {
     let changed = false
     for (const q of quotes) {
       const prev = next.get(q.symbol)
-      if (prev && prev.timestamp === q.timestamp) continue
+      // Two sources feed this store (the REST snapshot and the hub). Never let an older quote replace a newer one.
+      if (prev && !isNewer(q, prev)) continue
       changed = true
       const cmp = prev ? D(q.mid).comparedTo(prev.mid) : 0
       next.set(q.symbol, {

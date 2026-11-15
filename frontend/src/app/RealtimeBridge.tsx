@@ -58,19 +58,21 @@ export function RealtimeBridge() {
         refreshAccount()
         announceFill(trade)
       },
+      // Fills and price moves that happened while disconnected were never pushed: catch up.
+      reconnected: () => {
+        refreshAccount()
+        void client.invalidateQueries({ queryKey: queryKeys.quotesSnapshot })
+      },
     })
 
-    // A different account replaced the current one (server restart or "start over"): reset account data so
-    // mounted views refetch for the new account. Reset rather than remove: removing a query that a component is
-    // observing leaves that component without data until something else triggers a fetch.
-    let firstSession = true
+    // A different account replaced the current one (server restart or "start over"). Cancel in-flight requests
+    // first, so a late response for the old account can't land in the new account's cache, then reset so mounted
+    // views refetch. (Reset rather than remove: a removed query leaves its observers without data.)
     const unsubscribe = onSessionChange((_, reason) => {
-      if (firstSession && reason === 'created') {
-        firstSession = false
-        return
-      }
-      firstSession = false
-      accountQueryKeys.forEach((queryKey) => void client.resetQueries({ queryKey }))
+      if (reason === 'initial') return
+      void Promise.all(accountQueryKeys.map((queryKey) => client.cancelQueries({ queryKey }))).then(() =>
+        accountQueryKeys.forEach((queryKey) => void client.resetQueries({ queryKey })),
+      )
       if (reason === 'reset') toast(latest.current.t('toast.sessionReset'))
     })
 

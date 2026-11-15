@@ -74,9 +74,12 @@ export function evaluateTicket(input: TicketInput, ctx: TicketContext): TicketEv
   const touch = input.side === 'Buy' ? ctx.ask : ctx.bid
   if (input.type === 'Market' && !touch) issues.push({ field: 'form', code: 'no_market_data' })
 
+  // A valid limit price is useful on its own (e.g. to size "use 100%" before a quantity exists).
+  const validLimit = input.type === 'Limit' && limitPrice && !issues.some((i) => i.field === 'limitPrice') ? limitPrice : undefined
+
   const fieldsOk = !issues.some((i) => i.field !== 'form')
   const priceText = input.type === 'Limit' ? limitPrice : touch
-  if (!fieldsOk || !quantity || !priceText) return { issues }
+  if (!fieldsOk || !quantity || !priceText) return { issues, limitPrice: validLimit }
 
   const price = D(priceText)
   const notional = price.mul(quantity)

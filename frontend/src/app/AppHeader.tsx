@@ -20,7 +20,7 @@ export function AppHeader({ theme, onToggleTheme }: { theme: Theme; onToggleThem
   return (
     <header className="sticky top-0 z-20 border-b border-rule bg-harbor/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:gap-8 sm:px-6">
-        <NavLink to="/" className="flex items-center gap-2 font-semibold">
+        <NavLink to="/" aria-label={t('app.name')} className="flex items-center gap-2 font-semibold">
           <Logo />
           <span className="hidden sm:inline">{t('app.name')}</span>
         </NavLink>

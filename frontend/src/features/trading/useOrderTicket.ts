@@ -11,6 +11,7 @@ import { D, placesOf } from '@/shared/lib/decimal'
 import { formatDecimal, formatMoney } from '@/shared/lib/format'
 import { useHubStatus } from '@/shared/realtime/hub'
 import { usePlaceOrder } from './accountQueries'
+import { OrderAttempts } from './orderAttempts'
 import { evaluateTicket, quantityForFraction, type TicketContext, type TicketIssue } from './ticketRules'
 
 type Field = 'quantity' | 'limitPrice'
@@ -37,6 +38,7 @@ export function useOrderTicket(symbol: string) {
   const [attempted, setAttempted] = useState(false)
   const quantityRef = useRef<HTMLInputElement>(null)
   const priceRef = useRef<HTMLInputElement>(null)
+  const [attempts] = useState(() => new OrderAttempts())
 
   // Bumped on every edit, so a settling order can tell whether the user has started on the next one.
   const editVersion = useRef(0)
@@ -114,14 +116,13 @@ export function useOrderTicket(symbol: string) {
       return
     }
 
-    // One key per user action. The client reuses it on a network retry; the server dedupes on it.
-    const idempotencyKey = crypto.randomUUID()
+    const input = { symbol, side, type, quantity: evaluation.quantity, limitPrice: type === 'Limit' ? evaluation.limitPrice : undefined }
+    // One key per order: reused only if this exact order is resubmitted after a network failure (unknown outcome).
+    const idempotencyKey = attempts.keyFor(input)
     const versionAtSubmit = editVersion.current
     try {
-      const { order } = await place.mutateAsync({
-        key: idempotencyKey,
-        input: { symbol, side, type, quantity: evaluation.quantity, limitPrice: type === 'Limit' ? evaluation.limitPrice : undefined },
-      })
+      const { order } = await place.mutateAsync({ key: idempotencyKey, input })
+      attempts.settle()
       const params = {
         qty: formatDecimal(order.quantity, language, 0, qtyPlaces),
         asset: instrument.baseAsset,
@@ -140,6 +141,7 @@ export function useOrderTicket(symbol: string) {
       }
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'unknown'
+      if (code !== 'network') attempts.settle() // a definitive answer; only network failures leave it unknown
       toast.error(t('toast.rejected'), { description: t(`reasons.${code}`, { defaultValue: t('reasons.unknown') }) })
     }
   }

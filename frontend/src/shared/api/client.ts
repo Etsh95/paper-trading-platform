@@ -47,9 +47,11 @@ async function toError(response: Response): Promise<ApiError> {
 async function send(path: string, init: RequestInit = {}, authenticated = true, retried = false): Promise<Response> {
   const headers = new Headers(init.headers)
   if (init.body) headers.set('Content-Type', 'application/json')
+  let tokenUsed: string | null = null
   if (authenticated) {
     await ensureSession()
-    headers.set('Authorization', `Bearer ${currentToken()}`)
+    tokenUsed = currentToken()
+    headers.set('Authorization', `Bearer ${tokenUsed}`)
   }
 
   let response: Response
@@ -60,8 +62,10 @@ async function send(path: string, init: RequestInit = {}, authenticated = true, 
   }
 
   // The server keeps accounts in memory; after a restart our token is no longer valid. Start fresh once.
+  // If another request already replaced the session while this one was in flight, the 401 is for the old
+  // token: just retry with the current one instead of creating yet another account.
   if (response.status === 401 && authenticated && !retried) {
-    await renewSession('reset')
+    if (currentToken() === tokenUsed) await renewSession('reset')
     return send(path, init, authenticated, true)
   }
 

@@ -32,7 +32,10 @@ interface Import {
 
 function importsOf(file: string): Import[] {
   const text = readFileSync(file, 'utf8')
-  const specs = [...text.matchAll(/(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1] ?? m[2]!)
+  // Static imports/re-exports, dynamic import(), and side-effect imports (`import '@/x'`).
+  const specs = [
+    ...text.matchAll(/(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)|^\s*import\s+['"]([^'"]+)['"]/gm),
+  ].map((m) => m[1] ?? m[2] ?? m[3]!)
   return specs
     .filter((spec) => spec.startsWith('@/') || spec.startsWith('.'))
     .map((spec) => ({

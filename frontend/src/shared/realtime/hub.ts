@@ -10,6 +10,8 @@ export interface HubHandlers {
   quotes(quotes: Quote[]): void
   orderUpdated(order: Order): void
   tradeExecuted(trade: Trade): void
+  /** The connection came back after a drop: anything pushed in between was missed, so refresh. */
+  reconnected(): void
 }
 
 let status: HubStatus = 'connecting'
@@ -40,31 +42,39 @@ export function startHub(handlers: HubHandlers): () => void {
 
   const connect = async () => {
     const gen = ++generation
-    await ensureSession()
-    if (stopped || gen !== generation) return
     const isCurrent = () => !stopped && gen === generation
     const retryLater = () => setTimeout(() => isCurrent() && void connect(), 5_000)
 
-    const c = new HubConnectionBuilder()
-      .withUrl(apiUrl('/hubs/market'), { accessTokenFactory: () => currentToken() ?? '' })
-      .withAutomaticReconnect([0, 1_000, 2_000, 5_000, 10_000, 15_000, 30_000])
-      .configureLogging(LogLevel.Warning)
-      .build()
-
-    c.on('quotes', handlers.quotes)
-    c.on('orderUpdated', handlers.orderUpdated)
-    c.on('tradeExecuted', handlers.tradeExecuted)
-    c.onreconnecting(() => isCurrent() && setStatus('reconnecting'))
-    c.onreconnected(() => isCurrent() && setStatus('live'))
-    c.onclose(() => {
-      if (!isCurrent()) return
-      setStatus('offline')
-      retryLater()
-    })
-
-    connection = c
     setStatus('connecting')
     try {
+      // Inside the try: if the session can't be created (API down at startup), retry instead of giving up.
+      await ensureSession()
+      if (!isCurrent()) return
+
+      const c = new HubConnectionBuilder()
+        .withUrl(apiUrl('/hubs/market'), { accessTokenFactory: () => currentToken() ?? '' })
+        .withAutomaticReconnect([0, 1_000, 2_000, 5_000, 10_000, 15_000, 30_000])
+        .configureLogging(LogLevel.Warning)
+        .build()
+
+      // Every callback is gated on the generation, so a connection being replaced (e.g. after "start over")
+      // can't deliver the previous account's events into the current one.
+      c.on('quotes', (quotes: Quote[]) => isCurrent() && handlers.quotes(quotes))
+      c.on('orderUpdated', (order: Order) => isCurrent() && handlers.orderUpdated(order))
+      c.on('tradeExecuted', (trade: Trade) => isCurrent() && handlers.tradeExecuted(trade))
+      c.onreconnecting(() => isCurrent() && setStatus('reconnecting'))
+      c.onreconnected(() => {
+        if (!isCurrent()) return
+        setStatus('live')
+        handlers.reconnected()
+      })
+      c.onclose(() => {
+        if (!isCurrent()) return
+        setStatus('offline')
+        retryLater()
+      })
+
+      connection = c
       await c.start()
       if (isCurrent()) setStatus('live')
       else void c.stop()
@@ -76,8 +86,10 @@ export function startHub(handlers: HubHandlers): () => void {
     }
   }
 
-  // New session (server restart or "start over"): reconnect so the new token joins the right account group.
-  const unsubscribe = onSessionChange(() => {
+  // A different account (server restart or "start over"): reconnect so the new token joins the right account
+  // group. The first session needs no reconnect; connect() is already waiting for it.
+  const unsubscribe = onSessionChange((_, reason) => {
+    if (reason === 'initial') return
     const old = connection
     connection = null
     void connect()
