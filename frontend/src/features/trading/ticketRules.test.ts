@@ -80,6 +80,11 @@ describe('evaluateTicket', () => {
     expect(codes(evaluateTicket(input({ quantity: '0.00001' }), ctx()))).toEqual(['min_notional'])
   })
 
+  it('exposes a valid limit price even before a quantity is entered (used to size "use 100%")', () => {
+    expect(evaluateTicket(input({ type: 'Limit', quantity: '', limitPrice: '49000' }), ctx()).limitPrice).toBe('49000')
+    expect(evaluateTicket(input({ type: 'Limit', quantity: '', limitPrice: '49000.001' }), ctx()).limitPrice).toBeUndefined()
+  })
+
   it('reports missing market data for market orders only', () => {
     expect(codes(evaluateTicket(input(), ctx({ ask: undefined, bid: undefined })))).toEqual(['no_market_data'])
     expect(codes(evaluateTicket(input({ type: 'Limit', limitPrice: '49000' }), ctx({ ask: undefined, bid: undefined })))).toEqual([])

@@ -3,7 +3,15 @@ import { apiUrl } from './url'
 
 const STORAGE_KEY = 'paperdesk.session'
 
-type Listener = (session: Session, reason: 'created' | 'reset') => void
+/**
+ * Why the session changed:
+ * - `initial`: first session in this browser; nothing to reset.
+ * - `created`: the user started over with a new account.
+ * - `reset`: the server no longer accepts our token (in-memory state lost on restart).
+ */
+export type SessionChangeReason = 'initial' | 'created' | 'reset'
+
+type Listener = (session: Session, reason: SessionChangeReason) => void
 
 let current: Session | null = load()
 let pending: Promise<Session> | null = null
@@ -28,7 +36,7 @@ function save(session: Session) {
   }
 }
 
-async function create(reason: 'created' | 'reset'): Promise<Session> {
+async function create(reason: SessionChangeReason): Promise<Session> {
   const response = await fetch(apiUrl('/api/sessions'), { method: 'POST' })
   if (!response.ok) throw new Error(`Could not start a session (${response.status})`)
   const session = (await response.json()) as Session
@@ -41,7 +49,7 @@ async function create(reason: 'created' | 'reset'): Promise<Session> {
 /** Returns the current session, creating an anonymous paper account on first use. */
 export function ensureSession(): Promise<Session> {
   if (current) return Promise.resolve(current)
-  pending ??= create('created').finally(() => (pending = null))
+  pending ??= create('initial').finally(() => (pending = null))
   return pending
 }
 
@@ -49,7 +57,7 @@ export function ensureSession(): Promise<Session> {
  * Replaces the session. Used when the server no longer accepts our token (it keeps state in memory,
  * so a restart resets accounts) or when the user asks to start over.
  */
-export function renewSession(reason: 'reset' | 'created' = 'reset'): Promise<Session> {
+export function renewSession(reason: Exclude<SessionChangeReason, 'initial'> = 'reset'): Promise<Session> {
   current = null
   pending ??= create(reason).finally(() => (pending = null))
   return pending

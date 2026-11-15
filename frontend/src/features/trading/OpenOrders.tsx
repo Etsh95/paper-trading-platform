@@ -41,14 +41,18 @@ function OpenOrderRow({ order }: { order: Order }) {
   const { quotes } = useMarket()
   const cancel = useCancelOrder()
   const instrument = instruments.get(order.symbol)
-  if (!instrument || !order.limitPrice) return null
+  if (!order.limitPrice) return null
+  // Render even before instruments load (fallback precision), so an open order is never hidden from cancellation.
+  const pricePlaces = instrument ? placesOf(instrument.tickSize) : 2
+  const qtyPlaces = instrument ? placesOf(instrument.stepSize) : 8
+  const asset = instrument?.baseAsset ?? order.symbol
 
   const quote = quotes.get(order.symbol)
   const touch = order.side === 'Buy' ? quote?.ask : quote?.bid
   // How far the market still has to move for this order to fill.
   const distance = touch ? D(order.limitPrice).minus(touch).div(touch) : null
-  const qty = formatDecimal(order.quantity, language, 0, placesOf(instrument.stepSize))
-  const price = formatDecimal(order.limitPrice, language, placesOf(instrument.tickSize))
+  const qty = formatDecimal(order.quantity, language, 0, qtyPlaces)
+  const price = formatDecimal(order.limitPrice, language, pricePlaces)
 
   const onCancel = async () => {
     try {
@@ -72,7 +76,7 @@ function OpenOrderRow({ order }: { order: Order }) {
       <div className="flex items-center gap-3 px-5 py-2.5 sm:px-6">
         <SidePill side={order.side} />
         <span className="num font-medium">{qty}</span>
-        <span className="text-muted">{instrument.baseAsset}</span>
+        <span className="text-muted">{asset}</span>
         <span className="text-sm text-muted">{t('orders.at')}</span>
         <span className="num font-medium">{price}</span>
         {distance && <span className="num hidden text-xs text-muted sm:inline">{formatPercent(distance, language)}</span>}
@@ -80,7 +84,7 @@ function OpenOrderRow({ order }: { order: Order }) {
           type="button"
           onClick={onCancel}
           disabled={cancel.isPending}
-          aria-label={t('orders.cancelLabel', { side: t(`side.${order.side}`), qty, asset: instrument.baseAsset })}
+          aria-label={t('orders.cancelLabel', { side: t(`side.${order.side}`), qty, asset })}
           className="ms-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted transition-colors hover:bg-fall/10 hover:text-fall"
         >
           {cancel.isPending ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <X className="size-3.5" aria-hidden />}
