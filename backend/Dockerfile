@@ -9,7 +9,9 @@ WORKDIR /src
 
 # Restore first, from project files only, so the layer is cached until dependencies change.
 COPY Directory.Build.props ./
-COPY src/PaperTrading.Core/PaperTrading.Core.csproj src/PaperTrading.Core/
+COPY src/PaperTrading.Domain/PaperTrading.Domain.csproj src/PaperTrading.Domain/
+COPY src/PaperTrading.Application/PaperTrading.Application.csproj src/PaperTrading.Application/
+COPY src/PaperTrading.Infrastructure/PaperTrading.Infrastructure.csproj src/PaperTrading.Infrastructure/
 COPY src/PaperTrading.Api/PaperTrading.Api.csproj src/PaperTrading.Api/
 RUN dotnet restore src/PaperTrading.Api/PaperTrading.Api.csproj -a $TARGETARCH
 

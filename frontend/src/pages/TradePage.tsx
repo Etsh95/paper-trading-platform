@@ -1,11 +1,11 @@
 import { useSearchParams } from 'react-router'
-import { AccountSummary } from '../components/AccountSummary'
-import { MarketsTable } from '../components/MarketsTable'
-import { OpenOrders } from '../components/OpenOrders'
-import { OrderTicket } from '../components/OrderTicket'
-import { useInstruments } from '../state/queries'
+import { MarketsTable } from '@/features/market'
+import { AccountSummary } from '@/features/portfolio'
+import { OpenOrders, OrderTicket } from '@/features/trading'
+import { useInstruments } from '@/shared/api/referenceData'
 
-export function TradePage() {
+/** Landing page: account, markets and open orders beside the order ticket. Pages compose features; no logic. */
+export default function TradePage() {
   const [params, setParams] = useSearchParams()
   const { data: instruments } = useInstruments()
   const requested = params.get('symbol')

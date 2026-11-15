@@ -1,10 +1,12 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/PaperTrading.Domain/PaperTrading.Domain.csproj" />
+    <Project Path="src/PaperTrading.Application/PaperTrading.Application.csproj" />
+    <Project Path="src/PaperTrading.Infrastructure/PaperTrading.Infrastructure.csproj" />
     <Project Path="src/PaperTrading.Api/PaperTrading.Api.csproj" />
-    <Project Path="src/PaperTrading.Core/PaperTrading.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/PaperTrading.Api.Tests/PaperTrading.Api.Tests.csproj" />
-    <Project Path="tests/PaperTrading.Core.Tests/PaperTrading.Core.Tests.csproj" />
+    <Project Path="tests/PaperTrading.UnitTests/PaperTrading.UnitTests.csproj" />
+    <Project Path="tests/PaperTrading.Api.IntegrationTests/PaperTrading.Api.IntegrationTests.csproj" />
   </Folder>
 </Solution>
