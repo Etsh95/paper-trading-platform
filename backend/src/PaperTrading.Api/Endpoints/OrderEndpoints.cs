@@ -47,8 +47,9 @@ public static class OrderEndpoints
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > MaxKeyLength)
             return Problem(StatusCodes.Status400BadRequest, $"A {IdempotencyHeader} header (1-{MaxKeyLength} characters) is required.", "idempotency_key_required");
 
-        if (!Enum.IsDefined(body.Side) || !Enum.IsDefined(body.Type))
-            return Problem(StatusCodes.Status400BadRequest, "Invalid side or type.", "invalid_request");
+        // `required` only checks the property is present; "symbol": null still binds.
+        if (string.IsNullOrWhiteSpace(body.Symbol))
+            return Problem(StatusCodes.Status400BadRequest, "A symbol is required.", "invalid_request");
 
         var result = await trading.PlaceOrderAsync(http.User.AccountId(), body.ToDomain(), idempotencyKey, ct);
         if (result.Replayed) http.Response.Headers[ReplayedHeader] = "true";

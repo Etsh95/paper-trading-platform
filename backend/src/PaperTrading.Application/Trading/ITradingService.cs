@@ -10,6 +10,13 @@ namespace PaperTrading.Application.Trading;
 /// </summary>
 public interface ITradingService
 {
+    /// <summary>
+    /// Whether the account exists. State is in memory, so after a restart a still-valid token can point at an
+    /// account that no longer exists; authentication uses this to reject such tokens instead of silently
+    /// handing the user a fresh, empty account.
+    /// </summary>
+    Task<bool> AccountExistsAsync(Guid accountId, CancellationToken cancellationToken = default);
+
     /// <summary>Creates the paper account if needed and returns its opening valuation.</summary>
     Task<PortfolioValuation> OpenAccountAsync(Guid accountId, CancellationToken cancellationToken = default);
 
