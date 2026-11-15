@@ -3,7 +3,7 @@
 # ---- build -------------------------------------------------------------------
 # The SDK stage runs on the build machine's own architecture and cross-compiles for the target
 # (e.g. an arm64 Mac producing the amd64 image Azure runs), so no slow CPU emulation is involved.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG TARGETARCH
 WORKDIR /src
 
