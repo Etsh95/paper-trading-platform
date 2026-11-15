@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local env files (also covered by the root .gitignore)
+.env
+.env.*
+!.env.example

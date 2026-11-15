@@ -24,7 +24,7 @@ internal sealed class EngineHarness
 {
     public static readonly DateTimeOffset Start = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-    public EngineHarness(decimal feeRate = 0.001m, decimal initialCash = 100_000m, int maxOpenOrders = 100)
+    public EngineHarness(decimal feeRate = 0.001m, decimal initialCash = 100_000m, int maxOpenOrders = 100, Action<TradingOptions>? configure = null)
     {
         Options = new TradingOptions
         {
@@ -33,6 +33,7 @@ internal sealed class EngineHarness
             MaxQuoteAge = TimeSpan.FromSeconds(10),
             MaxOpenOrdersPerAccount = maxOpenOrders,
         };
+        configure?.Invoke(Options);
         Engine = new MatchingEngine(Instruments.All, Options, Time);
     }
 

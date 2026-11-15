@@ -13,6 +13,8 @@ services:
       # its own rate-limit bucket instead of all sharing nginx's address.
       ForwardedHeaders__TrustProxy: "true"
     # Deliberately not published: reach the API (and its docs at /docs) through nginx on :8080.
+    # No healthcheck: the runtime image is chiseled (no shell, curl or wget) to keep its attack surface small. An
+    # orchestrator can probe /health/live over HTTP instead.
     restart: unless-stopped
 
   web:
@@ -21,4 +23,11 @@ services:
       - api
     ports:
       - "8080:8080"
+    healthcheck:
+      # 127.0.0.1, not localhost: localhost resolves to ::1 first and nginx listens on IPv4 only.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     restart: unless-stopped

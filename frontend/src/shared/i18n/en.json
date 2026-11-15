@@ -102,6 +102,7 @@
     "order_not_open": "This order already finished, so it can't be cancelled.",
     "rate_limited": "You're sending orders too quickly. Wait a second and try again.",
     "network": "Couldn't reach the server. Check your connection and try again.",
+    "capacity_reached": "The demo has reached its account limit. Try again later.",
     "unknown": "Something went wrong. Try again.",
     "invalid_order_type": "Unknown order side or type."
   },

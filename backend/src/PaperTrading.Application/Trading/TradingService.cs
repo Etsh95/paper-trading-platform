@@ -6,7 +6,7 @@ namespace PaperTrading.Application.Trading;
 /// <summary>Runs each use case as one operation on the engine's single-writer queue.</summary>
 internal sealed class TradingService(EngineSequencer sequencer) : ITradingService
 {
-    public Task<PortfolioValuation> OpenAccountAsync(Guid accountId, CancellationToken cancellationToken = default) =>
+    public Task<PortfolioValuation?> OpenAccountAsync(Guid accountId, CancellationToken cancellationToken = default) =>
         sequencer.ExecuteAsync(e => e.OpenAccount(accountId), cancellationToken);
 
     public Task<bool> AccountExistsAsync(Guid accountId, CancellationToken cancellationToken = default) =>

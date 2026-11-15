@@ -32,7 +32,7 @@ public class TradingServiceTests : IAsyncLifetime
         var trades = await _service.GetTradesAsync(account, 10);
         var orders = await _service.GetOrdersAsync(account, OrderStatus.Filled, 10);
 
-        Assert.Equal(100_000m, opened.Cash);
+        Assert.Equal(100_000m, opened!.Cash);
         Assert.Equal(OrderStatus.Filled, placed.Order!.Status);
         Assert.Equal(99_000m, portfolio.Cash);
         Assert.Single(trades);

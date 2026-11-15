@@ -17,10 +17,13 @@ public static class SessionEndpoints
         return app;
     }
 
-    private static async Task<Created<SessionResponse>> CreateSession(ITradingService trading, TokenService tokens, CancellationToken ct)
+    private static async Task<Results<Created<SessionResponse>, ProblemHttpResult>> CreateSession(ITradingService trading, TokenService tokens, CancellationToken ct)
     {
         var accountId = Guid.NewGuid();
         var opening = await trading.OpenAccountAsync(accountId, ct);
+        if (opening is null)
+            return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "The platform is at capacity. Try again later.",
+                extensions: new Dictionary<string, object?> { ["code"] = "capacity_reached" });
         var (token, expiresAt) = tokens.Issue(accountId);
         return TypedResults.Created("/api/portfolio", new SessionResponse(accountId, token, expiresAt, opening.InitialCash));
     }

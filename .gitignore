@@ -25,3 +25,6 @@ appsettings.*.local.json
 
 # Local working notes (not part of the repository)
 docs/
+
+# Security assessment of the live system (describes attacks; not for the repository)
+SECURITY_ASSESSMENT_REPORT.md

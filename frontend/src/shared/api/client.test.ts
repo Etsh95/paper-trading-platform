@@ -91,4 +91,23 @@ describe('api client session recovery', () => {
 
     expect(reasons).toEqual(['initial', 'created'])
   })
+
+  it('explains a refused session with the server\'s code, in both languages', async () => {
+    const { api, ApiError } = await import('./client')
+    const en = (await import('@/shared/i18n/en.json')).default
+    const ar = (await import('@/shared/i18n/ar.json')).default
+    vi.stubGlobal('fetch', async () =>
+      new Response(JSON.stringify({ title: 'Demo is full.', code: 'capacity_reached' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    )
+
+    const error = await api.portfolio().catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 503, code: 'capacity_reached' })
+    expect(en.reasons.capacity_reached).toBeTruthy()
+    expect(ar.reasons.capacity_reached).toBeTruthy()
+  })
 })

@@ -41,7 +41,15 @@ public sealed class MatchingEngine
     // ---------------------------------------------------------------- accounts
 
     /// <summary>Opens the account if it does not exist yet. Idempotent.</summary>
-    public PortfolioValuation OpenAccount(Guid accountId) => GetPortfolio(accountId);
+    /// <summary>
+    /// Opens the account if it does not exist yet (idempotent). Returns null when the platform is at its account
+    /// capacity (<see cref="TradingOptions.MaxAccounts"/>), so anonymous sign-ups can't grow memory without bound.
+    /// </summary>
+    public PortfolioValuation? OpenAccount(Guid accountId)
+    {
+        if (!_accounts.ContainsKey(accountId) && _accounts.Count >= _options.MaxAccounts) return null;
+        return GetPortfolio(accountId);
+    }
 
     public bool AccountExists(Guid accountId) => _accounts.ContainsKey(accountId);
 
@@ -54,30 +62,41 @@ public sealed class MatchingEngine
 
         // Idempotency check happens on the engine thread, so it is atomic with order creation:
         // concurrent duplicates are serialized and the second one always sees the first.
-        if (idempotencyKey is not null && account.IdempotencyKeys.TryGetValue(idempotencyKey, out var previous))
+        var now = _time.GetUtcNow();
+        (PlaceOrderRequest Request, Order Order, DateTimeOffset At) previous = default;
+        var known = idempotencyKey is not null && account.IdempotencyKeys.TryGetValue(idempotencyKey, out previous);
+        if (known && now - previous.At > _options.IdempotencyKeyLifetime)
         {
+            account.IdempotencyKeys.Remove(idempotencyKey!); // expired: the key starts a new order
+            known = false;
+        }
+
+        if (known)
+        {
+            var prior = previous.Order!; // set whenever the key is known
             return previous.Request == request
-                ? PlaceOrderResult.From(previous.Order, replayed: true)
-                : new PlaceOrderResult(PlaceOrderOutcome.IdempotencyConflict, previous.Order.ToSnapshot(),
+                ? PlaceOrderResult.From(prior, replayed: true)
+                : new PlaceOrderResult(PlaceOrderOutcome.IdempotencyConflict, prior.ToSnapshot(),
                     ErrorCode: "idempotency_key_reused",
                     ErrorMessage: "This Idempotency-Key was already used with a different order request.");
         }
 
         if (Validate(request) is { } invalid) return invalid;
 
-        var now = _time.GetUtcNow();
         var order = new Order(Guid.NewGuid(), accountId, ++_sequence, request.Symbol, request.Side, request.Type,
             request.Quantity, request.LimitPrice, idempotencyKey, now);
 
         account.Orders.Add(order.Id, order);
         account.OrderHistory.Add(order);
-        if (idempotencyKey is not null) account.IdempotencyKeys.Add(idempotencyKey, (request, order));
+        if (idempotencyKey is not null) account.IdempotencyKeys[idempotencyKey] = (request, order, now);
 
         if (order.Type == OrderType.Market) ExecuteMarket(account, order);
         else PlaceLimit(account, order);
 
         if (order.Status != OrderStatus.Filled) Emit(new OrderUpdated(accountId, order.ToSnapshot()));
-        return PlaceOrderResult.From(order, replayed: false);
+        var result = PlaceOrderResult.From(order, replayed: false);
+        PruneHistory(account, now);
+        return result;
     }
 
     public CancelOrderResult CancelOrder(Guid accountId, Guid orderId)
@@ -168,7 +187,7 @@ public sealed class MatchingEngine
             return PlaceOrderResult.Invalid(RejectReasons.InvalidOrderType, "Unknown order side or type.");
 
         if (!_instruments.TryGetValue(r.Symbol, out var instrument))
-            return PlaceOrderResult.Invalid(RejectReasons.UnknownSymbol, $"Unknown symbol '{r.Symbol}'.");
+            return PlaceOrderResult.Invalid(RejectReasons.UnknownSymbol, "Unknown symbol.");
 
         if (!instrument.IsValidQuantity(r.Quantity) || r.Quantity > Money.MaxOrderMagnitude)
             return PlaceOrderResult.Invalid(RejectReasons.InvalidQuantity,
@@ -283,6 +302,7 @@ public sealed class MatchingEngine
         var trade = new Trade(Guid.NewGuid(), order.Id, account.Id, order.Symbol, order.Side,
             order.Quantity, price, order.Quantity * price, fee, realized, now);
         account.Trades.Add(trade);
+        if (account.Trades.Count > _options.MaxTradesPerAccount) account.Trades.RemoveAt(0);
 
         Emit(new TradeExecuted(account.Id, trade));
         Emit(new OrderUpdated(account.Id, order.ToSnapshot()));
@@ -314,6 +334,33 @@ public sealed class MatchingEngine
 
         reason = string.Empty;
         return true;
+    }
+
+    /// <summary>
+    /// Keeps per-account memory bounded: drops the oldest finished orders beyond the history cap (open orders hold
+    /// reservations and are never dropped) and forgets idempotency keys past their lifetime or whose order was dropped.
+    /// </summary>
+    private void PruneHistory(Account account, DateTimeOffset now)
+    {
+        var excess = account.OrderHistory.Count - _options.MaxOrderHistoryPerAccount;
+        for (var i = 0; excess > 0 && i < account.OrderHistory.Count;)
+        {
+            var old = account.OrderHistory[i];
+            if (old.Status == OrderStatus.Open) { i++; continue; }
+            account.OrderHistory.RemoveAt(i);
+            account.Orders.Remove(old.Id);
+            // Only forget the key if it still belongs to this order: an expired key may have been reused since.
+            if (old.IdempotencyKey is not null && account.IdempotencyKeys.TryGetValue(old.IdempotencyKey, out var entry)
+                && ReferenceEquals(entry.Order, old))
+                account.IdempotencyKeys.Remove(old.IdempotencyKey);
+            excess--;
+        }
+
+        if (account.IdempotencyKeys.Count > _options.MaxOrderHistoryPerAccount)
+        {
+            foreach (var key in account.IdempotencyKeys.Where(k => now - k.Value.At > _options.IdempotencyKeyLifetime).Select(k => k.Key).ToList())
+                account.IdempotencyKeys.Remove(key);
+        }
     }
 
     private Account GetOrCreateAccount(Guid accountId)

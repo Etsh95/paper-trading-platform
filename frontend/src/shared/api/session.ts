@@ -1,3 +1,4 @@
+import { ApiError, toError } from './errors'
 import type { Session } from './types'
 import { apiUrl } from './url'
 
@@ -40,8 +41,14 @@ function save(session: Session) {
 }
 
 async function create(reason: SessionChangeReason): Promise<Session> {
-  const response = await fetch(apiUrl('/api/sessions'), { method: 'POST' })
-  if (!response.ok) throw new Error(`Could not start a session (${response.status})`)
+  let response: Response
+  try {
+    response = await fetch(apiUrl('/api/sessions'), { method: 'POST' })
+  } catch {
+    throw new ApiError(0, 'network', 'Network error')
+  }
+  // Carries the server's code (e.g. capacity_reached when the demo is full) so callers can explain it.
+  if (!response.ok) throw await toError(response)
   const session = (await response.json()) as Session
   current = session
   pendingReason = null
