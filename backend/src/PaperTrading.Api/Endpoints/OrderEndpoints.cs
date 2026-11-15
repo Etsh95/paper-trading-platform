@@ -13,6 +13,7 @@ public static class OrderEndpoints
     public const string IdempotencyHeader = "Idempotency-Key";
     public const string ReplayedHeader = "Idempotent-Replayed";
     private const int MaxKeyLength = 100;
+    private const int MaxSymbolLength = 20;
     private const int DefaultPageSize = 200;
     private const int MaxPageSize = 500;
 
@@ -48,8 +49,8 @@ public static class OrderEndpoints
             return Problem(StatusCodes.Status400BadRequest, $"A {IdempotencyHeader} header (1-{MaxKeyLength} characters) is required.", "idempotency_key_required");
 
         // `required` only checks the property is present; "symbol": null still binds.
-        if (string.IsNullOrWhiteSpace(body.Symbol))
-            return Problem(StatusCodes.Status400BadRequest, "A symbol is required.", "invalid_request");
+        if (string.IsNullOrWhiteSpace(body.Symbol) || body.Symbol.Length > MaxSymbolLength)
+            return Problem(StatusCodes.Status400BadRequest, $"A symbol of 1-{MaxSymbolLength} characters is required.", "invalid_request");
 
         var result = await trading.PlaceOrderAsync(http.User.AccountId(), body.ToDomain(), idempotencyKey, ct);
         if (result.Replayed) http.Response.Headers[ReplayedHeader] = "true";

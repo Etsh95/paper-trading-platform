@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ApiError } from '@/shared/api/client'
 import { renewSession } from '@/shared/api/session'
 
 /** Two-step confirm instead of a modal dialog: first click arms, second click resets. */
@@ -21,8 +22,9 @@ export function ResetAccount() {
     try {
       await renewSession('created')
       toast(t('toast.newAccount'))
-    } catch {
-      toast.error(t('toast.newAccountFailed'))
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : 'unknown'
+      toast.error(t('toast.newAccountFailed'), { description: t(`reasons.${code}`, { defaultValue: t('reasons.unknown') }) })
     } finally {
       setBusy(false)
       setArmed(false)

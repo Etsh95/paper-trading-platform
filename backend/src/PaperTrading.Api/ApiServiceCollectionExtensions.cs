@@ -80,6 +80,10 @@ public static class ApiServiceCollectionExtensions
             services.Configure<ForwardedHeadersOptions>(o =>
             {
                 o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                // Only the right-most X-Forwarded-For entry is used: the one the trusted proxy appended. Anything a
+                // client put to its left is ignored, so it can't choose its own rate-limit identity. Explicit (rather
+                // than relying on the default) and covered by a test, since raising it would make IPs spoofable.
+                o.ForwardLimit = 1;
                 o.KnownIPNetworks.Clear();
                 o.KnownProxies.Clear();
             });

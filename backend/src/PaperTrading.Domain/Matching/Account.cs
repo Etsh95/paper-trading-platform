@@ -10,6 +10,6 @@ internal sealed class Account(Guid id, decimal initialCash, DateTimeOffset opene
     public Dictionary<Guid, Order> Orders { get; } = [];
     public List<Order> OrderHistory { get; } = [];
     public List<Trade> Trades { get; } = [];
-    public Dictionary<string, (PlaceOrderRequest Request, Order Order)> IdempotencyKeys { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, (PlaceOrderRequest Request, Order Order, DateTimeOffset At)> IdempotencyKeys { get; } = new(StringComparer.Ordinal);
     public int OpenOrderCount { get; set; }
 }

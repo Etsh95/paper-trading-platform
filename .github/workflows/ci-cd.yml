@@ -23,8 +23,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: backend/global.json
       - run: dotnet restore
@@ -32,7 +32,7 @@ jobs:
       - run: dotnet test -c Release --no-build --logger "trx;LogFileName=results.trx" --collect "XPlat Code Coverage"
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: backend-test-results
           path: backend/tests/**/TestResults/**
@@ -44,8 +44,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
@@ -69,15 +69,18 @@ jobs:
     env:
       IMAGE: ${{ vars.ACR_LOGIN_SERVER }}/papertrading-api:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/login@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - uses: docker/setup-buildx-action@v4
-      - run: az acr login --name "${{ vars.ACR_NAME }}"
-      - uses: docker/build-push-action@v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Log in to the registry
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+        run: az acr login --name "$ACR_NAME"
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: backend
           platforms: linux/amd64
@@ -86,18 +89,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Roll out new revision
+        env:
+          API_APP_NAME: ${{ vars.API_APP_NAME }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
           az extension add --name containerapp --upgrade --only-show-errors
           az containerapp update \
-            --name "${{ vars.API_APP_NAME }}" \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$API_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
             --image "$IMAGE" \
             --only-show-errors -o none
       - name: Smoke test
+        env:
+          API_URL: ${{ vars.API_URL }}
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS "${{ vars.API_URL }}/health/live" >/dev/null; then
-              curl -fsS "${{ vars.API_URL }}/api/instruments" >/dev/null && echo "API is up" && exit 0
+            if curl -fsS "$API_URL/health/live" >/dev/null; then
+              curl -fsS "$API_URL/api/instruments" >/dev/null && echo "API is up" && exit 0
             fi
             sleep 5
           done
@@ -112,8 +120,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
@@ -129,17 +137,20 @@ jobs:
           api_host="${VITE_API_URL#https://}"
           sed -i "s#__API_ORIGIN__#https://${api_host}#; s#__API_WS_ORIGIN__#wss://${api_host}#" dist/staticwebapp.config.json
           grep -q "__API_" dist/staticwebapp.config.json && { echo "CSP placeholders not replaced"; exit 1; } || true
-      - uses: azure/login@v3
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Fetch deployment token at run time (never stored in GitHub)
+        env:
+          WEB_APP_NAME: ${{ vars.WEB_APP_NAME }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
-          token=$(az staticwebapp secrets list --name "${{ vars.WEB_APP_NAME }}" --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --query properties.apiKey -o tsv)
+          token=$(az staticwebapp secrets list --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query properties.apiKey -o tsv)
           echo "::add-mask::$token"
           echo "SWA_TOKEN=$token" >> "$GITHUB_ENV"
-      - uses: Azure/static-web-apps-deploy@v1
+      - uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
         with:
           azure_static_web_apps_api_token: ${{ env.SWA_TOKEN }}
           action: upload
@@ -147,4 +158,6 @@ jobs:
           skip_app_build: true
           skip_api_build: true
       - name: Smoke test
-        run: curl -fsS "${{ vars.WEB_URL }}/" | grep -q "<div id=\"root\">"
+        env:
+          WEB_URL: ${{ vars.WEB_URL }}
+        run: curl -fsS "$WEB_URL/" | grep -q "<div id=\"root\">"

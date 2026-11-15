@@ -17,8 +17,8 @@ public interface ITradingService
     /// </summary>
     Task<bool> AccountExistsAsync(Guid accountId, CancellationToken cancellationToken = default);
 
-    /// <summary>Creates the paper account if needed and returns its opening valuation.</summary>
-    Task<PortfolioValuation> OpenAccountAsync(Guid accountId, CancellationToken cancellationToken = default);
+    /// <summary>Creates the paper account if needed and returns its opening valuation; null when at account capacity.</summary>
+    Task<PortfolioValuation?> OpenAccountAsync(Guid accountId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Places an order exactly once per idempotency key. Cancellation only stops the request from being queued:

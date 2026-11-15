@@ -15,8 +15,10 @@
 #   3. Creates the API container app from that image.
 #   4. Creates a GitHub deployment identity in Entra ID with a *federated credential* (OIDC): GitHub Actions
 #      exchanges a short-lived token for Azure access, so no Azure password or key is stored in GitHub.
-#      Its roles are scoped to the individual resources it deploys, not the subscription.
-#   5. Writes the (non-secret) resource identifiers to GitHub repository variables.
+#      Its roles are scoped to the individual resources it deploys, not the subscription, and its role on the
+#      API cannot read the app's secrets.
+#   5. Restricts the GitHub "production" environment to the main branch and writes the (non-secret) resource
+#      identifiers to GitHub repository variables.
 set -euo pipefail
 
 : "${REPO:?Set REPO=<owner>/<repo>}"
@@ -104,13 +106,56 @@ assign() {
       --role "$role" --scope "$scope" -o none
   fi
 }
+# The container app holds the JWT signing key as a secret. Contributor could read it back (listSecrets) or get a
+# console token for the running container (getAuthToken), neither of which a deploy needs, so the API gets a custom
+# role: Contributor minus those actions. It has no DataActions, so console exec is not granted either.
+DEPLOY_ROLE="$PREFIX API deployer"
+RG_ID=$(az group show -n "$RG" --query id -o tsv)
+DEPLOY_ROLE_JSON=$(cat <<JSON
+{
+  "Name": "$DEPLOY_ROLE",
+  "Description": "Roll out new container app revisions without reading app secrets or exec-ing into replicas.",
+  "Actions": ["*"],
+  "NotActions": [
+    "Microsoft.Authorization/*/Delete",
+    "Microsoft.Authorization/*/Write",
+    "Microsoft.Authorization/elevateAccess/Action",
+    "Microsoft.App/containerApps/listSecrets/action",
+    "Microsoft.App/containerApps/getAuthToken/action",
+    "Microsoft.App/containerApps/authtoken/action"
+  ],
+  "AssignableScopes": ["$RG_ID"]
+}
+JSON
+)
+if [[ -z "$(az role definition list --name "$DEPLOY_ROLE" --scope "$RG_ID" --query "[].id" -o tsv)" ]]; then
+  az role definition create --role-definition "$DEPLOY_ROLE_JSON" -o none
+  # New role definitions take a little while to replicate before they can be assigned.
+  for _ in $(seq 1 12); do
+    az role definition list --name "$DEPLOY_ROLE" --scope "$RG_ID" --query "[].id" -o tsv | grep -q . && break
+    sleep 10
+  done
+else
+  az role definition update --role-definition "$DEPLOY_ROLE_JSON" -o none
+fi
+
 # Least privilege: push images to this registry, update this container app, read this static site's deploy token.
+API_ID=$(az resource show -g "$RG" -n "$API_NAME" --resource-type Microsoft.App/containerApps --query id -o tsv)
 assign AcrPush "$(az resource show -g "$RG" -n "$REGISTRY" --resource-type Microsoft.ContainerRegistry/registries --query id -o tsv)"
-assign Contributor "$(az resource show -g "$RG" -n "$API_NAME" --resource-type Microsoft.App/containerApps --query id -o tsv)"
+assign "$DEPLOY_ROLE" "$API_ID"
+# Earlier versions of this script granted Contributor on the API; remove it so only the narrower role remains.
+az role assignment delete --assignee "$SP_OBJECT_ID" --role Contributor --scope "$API_ID" -o none 2>/dev/null || true
 assign Contributor "$(az resource show -g "$RG" -n "$WEB_NAME" --resource-type Microsoft.Web/staticSites --query id -o tsv)"
 
 step "GitHub environment '$GH_ENVIRONMENT' and repository variables"
-gh api -X PUT "repos/$REPO/environments/$GH_ENVIRONMENT" --silent
+# Only main may deploy: the Azure federated credential trusts this environment, so a workflow run on any other
+# branch must not be able to enter it.
+gh api -X PUT "repos/$REPO/environments/$GH_ENVIRONMENT" --silent --input - <<'JSON'
+{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+JSON
+if ! gh api "repos/$REPO/environments/$GH_ENVIRONMENT/deployment-branch-policies" -q '.branch_policies[].name' | grep -qx main; then
+  gh api -X POST "repos/$REPO/environments/$GH_ENVIRONMENT/deployment-branch-policies" -f name=main -f type=branch --silent
+fi
 set_var() { gh variable set "$1" --body "$2" -R "$REPO"; }
 set_var AZURE_CLIENT_ID "$APP_ID"
 set_var AZURE_TENANT_ID "$TENANT_ID"

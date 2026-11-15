@@ -23,6 +23,19 @@ await step('page loads with live prices', async () => {
   await page.waitForSelector('text=Live prices', { timeout: 20000 })
   await page.waitForTimeout(3000)
 })
+await step('security headers on the page and its assets; dot-paths are 404', async () => {
+  const expected = { 'content-security-policy': "frame-ancestors 'none'", 'x-frame-options': 'DENY', 'x-content-type-options': 'nosniff', 'cross-origin-opener-policy': 'same-origin', 'permissions-policy': 'camera=()' }
+  const html = await page.request.get(base + '/')
+  const asset = new URL(html.url()).origin + (await html.text()).match(/src="(\/assets\/[^"]+\.js)"/)[1]
+  for (const url of [base + '/', asset]) {
+    const headers = (await page.request.get(url)).headers()
+    for (const [name, value] of Object.entries(expected)) if (!headers[name]?.includes(value)) throw new Error(`${url}: ${name} = ${headers[name]}`)
+  }
+  for (const path of ['/.env', '/.git/config']) {
+    const res = await page.request.get(base + path)
+    if (res.status() !== 404) throw new Error(`${path} answered ${res.status()}`)
+  }
+})
 await step('realtime quotes stream (sparkline drawn)', async () => {
   const points = await page.locator('polyline').first().getAttribute('points')
   if (!points || points.split(' ').length < 3) throw new Error('sparkline has too few points: ' + points)

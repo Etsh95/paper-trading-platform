@@ -372,6 +372,72 @@ public class MatchingEngineTests
     }
 
     [Fact]
+    public void Idempotency_keys_expire_after_their_lifetime()
+    {
+        _h.Quote(bid: 50_000m, ask: 50_010m);
+        var first = _h.Market(Buy, 0.1m, key: "k");
+
+        _h.Time.Advance(TimeSpan.FromHours(25));
+        _h.Quote(bid: 50_000m, ask: 50_010m);
+        var later = _h.Market(Buy, 0.1m, key: "k");
+
+        Assert.False(later.Replayed);
+        Assert.NotEqual(first.Order!.Id, later.Order!.Id);
+    }
+
+    [Fact]
+    public void Order_history_is_capped_without_ever_dropping_open_orders()
+    {
+        var h = new EngineHarness(feeRate: 0m, configure: o => o.MaxOrderHistoryPerAccount = 5);
+        h.Quote(bid: 100m, ask: 100.01m);
+        var open = h.Limit(Buy, 1m, 50m).Order!.Id; // resting, holds a reservation
+        for (var i = 0; i < 10; i++) h.Market(Buy, 0.1m, key: $"k{i}");
+
+        var orders = h.Engine.GetOrders(h.Account, limit: 100);
+        Assert.Equal(5, orders.Count);
+        Assert.Contains(orders, o => o.Id == open);
+        Assert.False(h.Market(Buy, 0.1m, key: "k0").Replayed); // the dropped order's key is forgotten too
+    }
+
+    [Fact]
+    public void Pruning_an_old_order_keeps_a_reused_key_pointing_at_its_newer_order()
+    {
+        var h = new EngineHarness(feeRate: 0m, configure: o => o.MaxOrderHistoryPerAccount = 3);
+        h.Quote(bid: 100m, ask: 100.01m);
+        h.Market(Buy, 0.1m, key: "k"); // oldest order; its key expires...
+
+        h.Time.Advance(TimeSpan.FromHours(25));
+        h.Quote(bid: 100m, ask: 100.01m);
+        var reused = h.Market(Buy, 0.1m, key: "k").Order!.Id; // ...and is reused for a new order
+        h.Market(Buy, 0.1m, key: "a");
+        h.Market(Buy, 0.1m, key: "b"); // pushes the oldest order out of the history
+
+        var retry = h.Market(Buy, 0.1m, key: "k");
+        Assert.True(retry.Replayed); // a retry of the newer order must not buy twice
+        Assert.Equal(reused, retry.Order!.Id);
+    }
+
+    [Fact]
+    public void New_accounts_are_refused_at_capacity_but_existing_ones_still_open()
+    {
+        var h = new EngineHarness(configure: o => o.MaxAccounts = 2);
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+
+        Assert.NotNull(h.Engine.OpenAccount(a));
+        Assert.NotNull(h.Engine.OpenAccount(b));
+        Assert.Null(h.Engine.OpenAccount(Guid.NewGuid()));
+        Assert.NotNull(h.Engine.OpenAccount(a)); // idempotent for existing accounts
+    }
+
+    [Fact]
+    public void Errors_do_not_echo_client_input()
+    {
+        var result = _h.Engine.PlaceOrder(_h.Account, new PlaceOrderRequest("<script>", Buy, OrderType.Market, 1m));
+
+        Assert.DoesNotContain("<script>", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Out_of_range_quotes_are_ignored()
     {
         _h.Quote(bid: 1m, ask: Money.MaxOrderMagnitude + 1m);

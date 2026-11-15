@@ -233,6 +233,30 @@ public class OrdersApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Responses_carry_hardening_headers()
+    {
+        var (client, _, _) = await factory.CreateTraderAsync();
+
+        var response = await client.GetAsync("/api/portfolio");
+
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+        Assert.True(response.Headers.CacheControl?.NoStore);
+    }
+
+    [Fact]
+    public async Task Overlong_symbol_is_a_bad_request()
+    {
+        var (client, _, _) = await factory.CreateTraderAsync();
+
+        var response = await client.PlaceOrderAsync(new { symbol = new string('X', 21), side = "Buy", type = "Market", quantity = "1" }, "k");
+
+        // Rejected at the API boundary, before the engine sees (or echoes) it.
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_request", (await response.JsonAsync()).GetProperty("code").GetString());
+    }
+
+    [Fact]
     public async Task Tampered_token_is_rejected()
     {
         var (client, _, token) = await factory.CreateTraderAsync();

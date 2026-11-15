@@ -2,12 +2,14 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PaperTrading.Api;
 using PaperTrading.Api.Endpoints;
 using PaperTrading.Api.Realtime;
+using PaperTrading.Api.Security;
 using PaperTrading.Application;
 using PaperTrading.Infrastructure;
 using Scalar.AspNetCore;
 
 // Composition root: the only place that knows about every layer.
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false); // don't advertise the server software
 
 builder.Services
     .AddApplication(builder.Configuration)      // engine, use cases, market-data ingestion
@@ -17,6 +19,7 @@ builder.Services
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseSecurityHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseCors();
