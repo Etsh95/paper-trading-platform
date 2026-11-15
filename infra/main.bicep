@@ -140,6 +140,8 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = if (deployApi) {
             { name: 'Auth__SigningKey', secretRef: 'auth-signing-key' }
             { name: 'Cors__AllowedOrigins__0', value: 'https://${web.properties.defaultHostname}' }
             { name: 'MarketData__Provider', value: 'Binance' }
+            // The platform ingress is the only path in, so its X-Forwarded-For can be trusted for client IPs.
+            { name: 'ForwardedHeaders__TrustProxy', value: 'true' }
           ]
           // Liveness only: readiness must not depend on the price feed, or a Binance outage would take the
           // single replica out of rotation instead of letting the app fall back to the mock feed.

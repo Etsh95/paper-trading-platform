@@ -31,6 +31,38 @@ public class MarketDataTests
     }
 
     [Fact]
+    public async Task Mock_feed_keeps_at_least_the_live_spread_on_failover()
+    {
+        // A wide live market: resting buy limits inside it must not be filled by a tighter simulated spread.
+        var cache = new QuoteCache();
+        cache.Update(new Quote("BTCUSDT", 50_000m, 51_000m, DateTimeOffset.UtcNow), "Binance");
+        var catalog = new StaticInstrumentCatalog();
+        var mock = new MockQuoteSource(Options.Create(new MarketDataOptions { MockInterval = TimeSpan.FromMilliseconds(10) }), TimeProvider.System, cache, catalog);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var first = await mock.StreamAsync(catalog.Instruments, cts.Token).FirstAsync(q => q.Symbol == "BTCUSDT", cts.Token);
+
+        Assert.True(first.Ask - first.Bid >= 1_000m, $"spread {first.Ask - first.Bid} is tighter than the live 1,000");
+    }
+
+    [Fact]
+    public async Task Ingestor_drops_invalid_quotes_and_feeds_valid_ones_to_engine_and_cache()
+    {
+        var engine = new MatchingEngine(new StaticInstrumentCatalog().Instruments, new TradingOptions());
+        await using var sequencer = new EngineSequencer(engine);
+        var cache = new QuoteCache();
+        var ingestor = new MarketDataIngestor(sequencer, cache);
+        var trading = new TradingService(sequencer);
+
+        await ingestor.PublishAsync(new Quote("BTCUSDT", 10m, 9m, DateTimeOffset.UtcNow), "Test", CancellationToken.None); // crossed
+        var valid = new Quote("BTCUSDT", 10m, 11m, DateTimeOffset.UtcNow);
+        await ingestor.PublishAsync(valid, "Test", CancellationToken.None);
+
+        Assert.Equal(valid, await trading.GetExecutionQuoteAsync("BTCUSDT"));
+        Assert.Equal(valid, Assert.Single(cache.All));
+    }
+
+    [Fact]
     public async Task Binance_message_parsing_is_exact_decimal()
     {
         var json = """{"stream":"btcusdt@bookTicker","data":{"u":1,"s":"BTCUSDT","b":"64342.01000000","B":"1.2","a":"64342.02000000","A":"0.5"}}"""u8;
@@ -40,6 +72,11 @@ public class MarketDataTests
         Assert.Equal(64_342.02m, quote.Ask);
         Assert.False(BinanceQuoteSource.TryParse("""{"data":{"s":"BTCUSDT","b":"1","a":"0.5"}}"""u8, DateTimeOffset.UtcNow, out _)); // crossed
         Assert.False(BinanceQuoteSource.TryParse("not json"u8, DateTimeOffset.UtcNow, out _));
+        // Unexpected shapes are rejected, not thrown on:
+        Assert.False(BinanceQuoteSource.TryParse("[1,2,3]"u8, DateTimeOffset.UtcNow, out _));
+        Assert.False(BinanceQuoteSource.TryParse("""{"data":"oops"}"""u8, DateTimeOffset.UtcNow, out _));
+        Assert.False(BinanceQuoteSource.TryParse("""{"data":{"s":42,"b":"1","a":"2"}}"""u8, DateTimeOffset.UtcNow, out _));
+        Assert.False(BinanceQuoteSource.TryParse("""{"data":{"s":"BTCUSDT","b":1,"a":2}}"""u8, DateTimeOffset.UtcNow, out _));
         await Task.CompletedTask;
     }
 

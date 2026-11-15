@@ -23,18 +23,16 @@ public sealed class QuoteBroadcaster(
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            var changed = new List<Quote>();
-            foreach (var q in cache.All)
-            {
-                if (lastSent.TryGetValue(q.Symbol, out var at) && at >= q.Timestamp) continue;
-                lastSent[q.Symbol] = q.Timestamp;
-                changed.Add(q);
-            }
+            var changed = cache.All
+                .Where(q => !lastSent.TryGetValue(q.Symbol, out var at) || q.Timestamp > at)
+                .ToList();
             if (changed.Count == 0) continue;
 
             try
             {
                 await hub.Clients.All.SendAsync("quotes", changed.ToResponses(ContractMapping.ToResponse), stoppingToken);
+                // Record delivery only after a successful send, so a failed broadcast is retried on the next tick.
+                foreach (var q in changed) lastSent[q.Symbol] = q.Timestamp;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

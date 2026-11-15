@@ -61,9 +61,13 @@ internal sealed class BinanceQuoteSource(IOptions<MarketDataOptions> options, Ti
         {
             var reader = new Utf8JsonReader(json);
             using var doc = JsonDocument.ParseValue(ref reader);
-            if (!doc.RootElement.TryGetProperty("data", out var data)) return false;
+            // Check shapes before reading: TryGetProperty throws on non-objects and GetString on non-strings.
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("data", out var data) ||
+                data.ValueKind != JsonValueKind.Object)
+                return false;
 
-            if (data.TryGetProperty("s", out var s) && s.GetString() is { Length: > 0 } symbol &&
+            if (data.TryGetProperty("s", out var s) && s.ValueKind == JsonValueKind.String && s.GetString() is { Length: > 0 } symbol &&
                 TryDecimal(data, "b", out var bid) && TryDecimal(data, "a", out var ask))
             {
                 quote = new Quote(symbol, bid, ask, receivedAt);

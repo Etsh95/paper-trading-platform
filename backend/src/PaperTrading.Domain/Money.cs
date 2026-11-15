@@ -10,6 +10,13 @@ public static class Money
     public const int QuoteScale = 8;
 
     /// <summary>
+    /// Upper bound for an order's quantity and price. Far beyond any real order, and it keeps every product the
+    /// engine computes (quantity x price x fee rate, about 10^18) well inside decimal's range (about 7.9 x 10^28),
+    /// so arithmetic can never overflow halfway through processing an order.
+    /// </summary>
+    public const decimal MaxOrderMagnitude = 1_000_000_000m;
+
+    /// <summary>
     /// Fee for a notional amount. Rounded <b>up</b> to <see cref="QuoteScale"/> so rounding never
     /// works in the trader's favour (the platform never under-charges).
     /// </summary>

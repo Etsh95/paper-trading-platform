@@ -274,7 +274,8 @@ public class OrdersApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [InlineData("-2.10", "-2.1")]
     public void Decimal_normalization_strips_trailing_zeros_only(string input, string expected)
     {
-        Assert.Equal(expected, DecimalStringJsonConverter.Normalize(decimal.Parse(input)).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        Assert.Equal(expected, DecimalStringJsonConverter.Normalize(decimal.Parse(input, invariant)).ToString(invariant));
     }
 
     private static Task<HttpResponseMessage> PostRawAsync(HttpClient client, string json)

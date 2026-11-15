@@ -327,6 +327,61 @@ public class MatchingEngineTests
     }
 
     [Fact]
+    public void Absurd_quantity_is_refused_up_front_instead_of_overflowing_mid_order()
+    {
+        // 10^24 x 50,010 overflows decimal. It must be refused before anything is recorded, not throw halfway.
+        _h.Quote(bid: 50_000m, ask: 50_010m);
+
+        var result = _h.Engine.PlaceOrder(_h.Account, new PlaceOrderRequest("BTCUSDT", Buy, OrderType.Market, 1_000_000_000_000_000_000_000_000m), "k-huge");
+        var retry = _h.Engine.PlaceOrder(_h.Account, new PlaceOrderRequest("BTCUSDT", Buy, OrderType.Market, 0.1m), "k-huge");
+
+        Assert.Equal(PlaceOrderOutcome.Invalid, result.Outcome);
+        Assert.Equal(RejectReasons.InvalidQuantity, result.ErrorCode);
+        Assert.DoesNotContain(_h.Engine.GetOrders(_h.Account), o => o.Quantity > 1m);
+        Assert.False(retry.Replayed); // the key was not consumed by the refused request
+    }
+
+    [Fact]
+    public void Limit_price_above_the_order_bound_is_refused()
+    {
+        var result = _h.Limit(Buy, 0.001m, Money.MaxOrderMagnitude + 0.01m);
+
+        Assert.Equal(PlaceOrderOutcome.Invalid, result.Outcome);
+        Assert.Equal(RejectReasons.InvalidPrice, result.ErrorCode);
+    }
+
+    [Fact]
+    public void Undefined_side_or_type_is_refused_by_the_domain_itself()
+    {
+        _h.Quote(bid: 50_000m, ask: 50_010m);
+
+        var badType = _h.Engine.PlaceOrder(_h.Account, new PlaceOrderRequest("BTCUSDT", Buy, (OrderType)42, 0.1m, 50_000m));
+        var badSide = _h.Engine.PlaceOrder(_h.Account, new PlaceOrderRequest("BTCUSDT", (OrderSide)42, OrderType.Market, 0.1m));
+
+        Assert.Equal(RejectReasons.InvalidOrderType, badType.ErrorCode);
+        Assert.Equal(RejectReasons.InvalidOrderType, badSide.ErrorCode);
+        Assert.Empty(_h.Engine.GetOrders(_h.Account));
+    }
+
+    [Fact]
+    public void Out_of_range_quotes_are_ignored()
+    {
+        _h.Quote(bid: 1m, ask: Money.MaxOrderMagnitude + 1m);
+
+        Assert.Null(_h.Engine.GetQuote("BTCUSDT"));
+    }
+
+    [Theory]
+    [InlineData(0, 0.001)]
+    [InlineData(-0.01, 0.001)]
+    [InlineData(0.01, 0)]
+    public void Instruments_reject_non_positive_increments(double tick, double step)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new Instrument("BTCUSDT", "BTC", "USDT", (decimal)tick, (decimal)step, 5m));
+    }
+
+    [Fact]
     public void Market_order_below_min_notional_at_current_price_is_rejected()
     {
         _h.Quote(bid: 50_000m, ask: 50_010m);

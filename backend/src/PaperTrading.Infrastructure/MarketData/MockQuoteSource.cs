@@ -26,10 +26,15 @@ internal sealed class MockQuoteSource(IOptions<MarketDataOptions> options, TimeP
     public async IAsyncEnumerable<Quote> StreamAsync(IReadOnlyList<Instrument> instruments, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var random = new Random();
-        var last = cache.All.ToDictionary(q => q.Symbol, q => q.Mid);
+        // Continue from the last real quote: its mid as the anchor, and at least its spread. Starting tighter than the
+        // live market would let failover fill resting limits placed inside the real spread.
+        var last = cache.All.ToDictionary(q => q.Symbol);
         var anchors = instruments.ToDictionary(
             i => i.Symbol,
-            i => last.TryGetValue(i.Symbol, out var mid) ? ToTick(mid, i.TickSize) : catalog.ReferencePrice(i.Symbol));
+            i => last.TryGetValue(i.Symbol, out var q) ? ToTick(q.Mid, i.TickSize) : catalog.ReferencePrice(i.Symbol));
+        var minHalfSpreads = instruments.ToDictionary(
+            i => i.Symbol,
+            i => last.TryGetValue(i.Symbol, out var q) ? CeilToTick((q.Ask - q.Bid) / 2, i.TickSize) : 0m);
         var mids = new Dictionary<string, decimal>(anchors);
         using var timer = new PeriodicTimer(options.Value.MockInterval, time);
 
@@ -45,11 +50,13 @@ internal sealed class MockQuoteSource(IOptions<MarketDataOptions> options, TimeP
                 mid = Math.Max(instrument.TickSize * 10, ToTick(mid * (1 + shock + pull), instrument.TickSize));
                 mids[instrument.Symbol] = mid;
 
-                var half = Math.Max(instrument.TickSize, ToTick(mid * HalfSpreadRatio, instrument.TickSize));
+                var half = Math.Max(Math.Max(instrument.TickSize, ToTick(mid * HalfSpreadRatio, instrument.TickSize)), minHalfSpreads[instrument.Symbol]);
                 yield return new Quote(instrument.Symbol, mid - half, mid + half, time.GetUtcNow());
             }
         }
     }
 
     private static decimal ToTick(decimal price, decimal tick) => Math.Round(price / tick, MidpointRounding.ToEven) * tick;
+
+    private static decimal CeilToTick(decimal value, decimal tick) => Math.Ceiling(value / tick) * tick;
 }
