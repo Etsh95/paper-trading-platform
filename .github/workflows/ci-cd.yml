@@ -150,7 +150,7 @@ jobs:
           token=$(az staticwebapp secrets list --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --query properties.apiKey -o tsv)
           echo "::add-mask::$token"
           echo "SWA_TOKEN=$token" >> "$GITHUB_ENV"
-      - uses: Azure/static-web-apps-deploy@4d27395796ac319302594769cfe812bd207490b1 # v1
+      - uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9 # v1
         with:
           azure_static_web_apps_api_token: ${{ env.SWA_TOKEN }}
           action: upload
