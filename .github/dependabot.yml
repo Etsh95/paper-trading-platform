@@ -1,4 +1,8 @@
 # Weekly update PRs. Workflow actions are pinned to commit SHAs, so Dependabot is what moves them forward.
+#
+# The backend stays on .NET 10 (LTS). Moving to a new .NET major is one deliberate change (SDK, target framework,
+# runtime image and every Microsoft.* package together), so Dependabot only proposes patches for those, and the
+# SignalR client follows the server's major version.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -8,6 +12,10 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    ignore:
+      # Its maintained `v1` is a branch; the `v1` tag is a stale 2021 commit that Dependabot would "update" to.
+      # Bump the pinned SHA by hand from the v1 branch instead.
+      - dependency-name: Azure/static-web-apps-deploy
 
   - package-ecosystem: nuget
     directory: /backend
@@ -16,6 +24,11 @@ updates:
     groups:
       nuget:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -24,6 +37,9 @@ updates:
     groups:
       frontend:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "@microsoft/signalr"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /e2e
@@ -37,6 +53,9 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "dotnet/*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /frontend
