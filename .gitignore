@@ -22,3 +22,6 @@ appsettings.*.local.json
 
 # OS
 .DS_Store
+
+# Local working notes (not part of the repository)
+docs/
