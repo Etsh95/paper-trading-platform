@@ -21,8 +21,15 @@ public sealed class MarketDataIngestor
     public ValueTask PublishAsync(Quote quote, string source, CancellationToken cancellationToken)
     {
         if (!quote.IsValid) return ValueTask.CompletedTask;
+        return PublishValidAsync(quote, source, cancellationToken);
+    }
+
+    // The engine gets the tick first; the read cache is updated only once the engine has accepted it, so the cache
+    // can never show a price the engine never received (e.g. if queueing is cancelled at shutdown).
+    private async ValueTask PublishValidAsync(Quote quote, string source, CancellationToken cancellationToken)
+    {
+        await _sequencer.PublishQuoteAsync(quote, cancellationToken);
         _cache.Update(quote, source);
-        return _sequencer.PublishQuoteAsync(quote, cancellationToken);
     }
 
     public void ReportDisconnected() => _cache.MarkDisconnected();

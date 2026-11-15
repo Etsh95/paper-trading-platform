@@ -16,6 +16,7 @@ public static class RejectReasons
 
     // Validation errors: the request is refused and nothing is recorded.
     public const string UnknownSymbol = "unknown_symbol";
+    public const string InvalidOrderType = "invalid_order_type";
     public const string InvalidQuantity = "invalid_quantity";
     public const string InvalidPrice = "invalid_price";
     public const string LimitPriceRequired = "limit_price_required";

@@ -61,13 +61,18 @@ public static class ApiServiceCollectionExtensions
             .AllowCredentials()
             .WithExposedHeaders("Location", OrderEndpoints.ReplayedHeader)));
 
-        services.Configure<ForwardedHeadersOptions>(o =>
+        // Client IPs (used for rate limiting) come from X-Forwarded-For only when explicitly configured to trust the
+        // proxy in front. Docker Compose enables it because nginx is the only way in.
+        // Anywhere the API port is reachable directly, trusting the header would let clients pick their own IP.
+        if (configuration.GetValue<bool>("ForwardedHeaders:TrustProxy"))
         {
-            // The API is reachable only through the reverse proxy in front of it.
-            o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            o.KnownIPNetworks.Clear();
-            o.KnownProxies.Clear();
-        });
+            services.Configure<ForwardedHeadersOptions>(o =>
+            {
+                o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                o.KnownIPNetworks.Clear();
+                o.KnownProxies.Clear();
+            });
+        }
 
         services.AddProblemDetails();
         services.AddOpenApi();

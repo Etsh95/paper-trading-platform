@@ -157,14 +157,25 @@ public sealed class MatchingEngine
 
     // ---------------------------------------------------------------- internals
 
+    /// <summary>
+    /// Validates everything that doesn't depend on market state. Runs before anything is recorded, so every later step
+    /// works on well-formed, bounded input and cannot fail halfway through an order.
+    /// </summary>
     private PlaceOrderResult? Validate(PlaceOrderRequest r)
     {
+        // The API rejects these too, but the domain must not rely on its callers.
+        if (!Enum.IsDefined(r.Side) || !Enum.IsDefined(r.Type))
+            return PlaceOrderResult.Invalid(RejectReasons.InvalidOrderType, "Unknown order side or type.");
+
         if (!_instruments.TryGetValue(r.Symbol, out var instrument))
             return PlaceOrderResult.Invalid(RejectReasons.UnknownSymbol, $"Unknown symbol '{r.Symbol}'.");
 
-        if (!instrument.IsValidQuantity(r.Quantity))
+        if (!instrument.IsValidQuantity(r.Quantity) || r.Quantity > Money.MaxOrderMagnitude)
             return PlaceOrderResult.Invalid(RejectReasons.InvalidQuantity,
-                $"Quantity must be positive and a multiple of {instrument.StepSize}.");
+                $"Quantity must be positive, at most {Money.MaxOrderMagnitude}, and a multiple of {instrument.StepSize}.");
+
+        if (r.LimitPrice > Money.MaxOrderMagnitude)
+            return PlaceOrderResult.Invalid(RejectReasons.InvalidPrice, $"Limit price must be at most {Money.MaxOrderMagnitude}.");
 
         switch (r.Type)
         {

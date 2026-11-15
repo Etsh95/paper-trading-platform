@@ -168,6 +168,7 @@ public class PortfolioTests
     [InlineData("100", "0", "0")]
     public void Fee_is_rounded_up_to_eight_decimals(string notional, string rate, string expected)
     {
-        Assert.Equal(decimal.Parse(expected), Money.Fee(decimal.Parse(notional), decimal.Parse(rate)));
+        static decimal D(string s) => decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(D(expected), Money.Fee(D(notional), D(rate)));
     }
 }
