@@ -13,7 +13,8 @@ public sealed record PlaceOrderRequest(
     decimal Quantity,
     decimal? LimitPrice = null)
 {
-    internal PlaceOrderRequest Normalize() => this with { Symbol = Symbol.Trim().ToUpperInvariant() };
+    // Symbol can be null at runtime when deserialized from untrusted JSON; normalize it to "" (an unknown symbol).
+    internal PlaceOrderRequest Normalize() => this with { Symbol = (Symbol ?? string.Empty).Trim().ToUpperInvariant() };
 }
 
 public enum PlaceOrderOutcome

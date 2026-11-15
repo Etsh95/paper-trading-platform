@@ -9,6 +9,9 @@ internal sealed class TradingService(EngineSequencer sequencer) : ITradingServic
     public Task<PortfolioValuation> OpenAccountAsync(Guid accountId, CancellationToken cancellationToken = default) =>
         sequencer.ExecuteAsync(e => e.OpenAccount(accountId), cancellationToken);
 
+    public Task<bool> AccountExistsAsync(Guid accountId, CancellationToken cancellationToken = default) =>
+        sequencer.ExecuteAsync(e => e.AccountExists(accountId), cancellationToken);
+
     public Task<PlaceOrderResult> PlaceOrderAsync(Guid accountId, PlaceOrderRequest request, string idempotencyKey, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);

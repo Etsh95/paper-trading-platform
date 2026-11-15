@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using PaperTrading.Api.Serialization;
 
 namespace PaperTrading.Api.IntegrationTests;
@@ -206,6 +207,29 @@ public class OrdersApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/api/orders/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.DeleteAsync($"/api/orders/{id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Valid_token_for_an_account_that_no_longer_exists_is_rejected()
+    {
+        // Simulates a restart: the signing key still validates the token, but the in-memory account is gone.
+        var tokens = factory.Services.GetRequiredService<PaperTrading.Api.Auth.TokenService>();
+        var (orphanToken, _) = tokens.Issue(Guid.NewGuid());
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", orphanToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/portfolio")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PlaceOrderAsync(MarketBuy, "k")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Null_symbol_is_a_bad_request_not_a_server_error()
+    {
+        var (client, _, _) = await factory.CreateTraderAsync();
+
+        var response = await PostRawAsync(client, """{"symbol":null,"side":"Buy","type":"Market","quantity":"0.001"}""");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

@@ -9,6 +9,7 @@ using PaperTrading.Api.Realtime;
 using PaperTrading.Api.Security;
 using PaperTrading.Api.Serialization;
 using PaperTrading.Application.Abstractions;
+using PaperTrading.Application.Trading;
 
 namespace PaperTrading.Api;
 
@@ -40,6 +41,16 @@ public static class ApiServiceCollectionExtensions
                 o.TokenValidationParameters = tokens.ValidationParameters();
                 o.Events = new JwtBearerEvents
                 {
+                    // Accounts live in memory but the signing key survives restarts, so a valid token can outlive
+                    // its account. Reject it (401): the client then starts a new session and tells the user why,
+                    // rather than every endpoint quietly creating an empty account under the old id.
+                    OnTokenValidated = async ctx =>
+                    {
+                        var trading = ctx.HttpContext.RequestServices.GetRequiredService<ITradingService>();
+                        if (!Guid.TryParse(ctx.Principal?.FindFirst("sub")?.Value, out var accountId) ||
+                            !await trading.AccountExistsAsync(accountId, ctx.HttpContext.RequestAborted))
+                            ctx.Fail("Account no longer exists.");
+                    },
                     // Browsers can't set headers on WebSocket upgrades, so SignalR sends the token in the query string.
                     OnMessageReceived = ctx =>
                     {

@@ -364,6 +364,14 @@ public class MatchingEngineTests
     }
 
     [Fact]
+    public void Null_symbol_is_refused_as_unknown_instead_of_crashing_the_engine()
+    {
+        var result = _h.Engine.PlaceOrder(_h.Account, new PlaceOrderRequest(null!, Buy, OrderType.Market, 0.1m));
+
+        Assert.Equal(RejectReasons.UnknownSymbol, result.ErrorCode);
+    }
+
+    [Fact]
     public void Out_of_range_quotes_are_ignored()
     {
         _h.Quote(bid: 1m, ask: Money.MaxOrderMagnitude + 1m);
