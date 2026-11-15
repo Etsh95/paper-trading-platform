@@ -98,7 +98,9 @@ public class MarketDataTests
         var service = new MarketDataService([primary, fallback], options, ingestor, catalog, TimeProvider.System, NullLogger<MarketDataService>.Instance);
 
         await service.StartAsync(CancellationToken.None);
-        await WaitUntil(() => primary.Attempts >= 2, TimeSpan.FromSeconds(5));
+        // Wait for both: on a busy machine the first 300 ms fallback window can close before the mock's first tick,
+        // and the service then simply falls back again after the next primary failure.
+        await WaitUntil(() => primary.Attempts >= 2 && fallback.Served > 0, TimeSpan.FromSeconds(10));
         await service.StopAsync(CancellationToken.None);
 
         Assert.True(fallback.Served > 0, "fallback should have served quotes");
