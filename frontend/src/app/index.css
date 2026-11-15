@@ -7,7 +7,7 @@
 @import "@fontsource/ibm-plex-sans-arabic/500.css";
 @import "@fontsource/ibm-plex-sans-arabic/600.css";
 
-/* Tokens (see docs/DESIGN.md). Light by default, dark via system preference or explicit choice. */
+/* Design tokens. Light by default, dark via system preference or explicit choice. */
 :root {
   --harbor: #f3f6fa;
   --deck: #ffffff;
