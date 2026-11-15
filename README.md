@@ -387,17 +387,7 @@ I used an AI coding assistant, **Claude Code (Anthropic)**, throughout the proje
   - I owned the Azure and GitHub setup: I created a dedicated Azure subscription for this project and kept it isolated from other work.
   - I chose and approved the hosting plan, regions and budget, and created the private repository.
   - I authorized every deployment and history change.
-- **Product review:** I used the running app myself and reported UI defects to be fixed (for example, the market selector's arrow padding in both LTR and RTL).
-
-**The AI's role: implementation**
-- **Code:** it wrote the code across the repository:
-  - the backend (domain, matching engine, API) and the React frontend with its translations
-  - the tests
-  - the Dockerfiles, the Bicep templates, the bootstrap script and the CI/CD workflow
-  - the documentation
-- **Design proposals:** it proposed detailed designs within the direction I set, such as the single-writer engine and the money-handling rules.
-- **Commands:** it ran builds, tests, browser checks and deployment commands with my approval.
-- **Code review:** I also had the code reviewed by two AI reviewers, CodeRabbit and a Claude-based review. Their findings were verified against the code before any were fixed.
+- **Product review:** I used the running app myself and reported UI defects to be fixed.
 
 **How the output was checked:** nothing relies on the AI being right by assertion.
 - Correctness of the money logic is checked by exact-value unit tests plus randomized invariant tests.
