@@ -113,7 +113,9 @@
     "cancelled": "Order cancelled",
     "rejected": "Order rejected",
     "sessionReset": "The server restarted, so you have a fresh paper account.",
-    "newAccount": "Started a new paper account."
+    "newAccount": "Started a new paper account.",
+    "alreadyPlaced": "This order was already placed. No second order was created.",
+    "newAccountFailed": "Couldn't start a new account. Wait a minute and try again."
   },
   "orders": {
     "open": "Open orders",

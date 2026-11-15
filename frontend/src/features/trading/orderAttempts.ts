@@ -1,3 +1,4 @@
+import { ApiError } from '@/shared/api/client'
 import type { PlaceOrderInput } from '@/shared/api/types'
 
 /**
@@ -28,6 +29,18 @@ export class OrderAttempts {
     this.pending = null
   }
 }
+
+/**
+ * True when the order may or may not have reached the engine: the network failed, or a gateway timed out or was
+ * unavailable (502/503/504) after possibly forwarding it. Only then may the key be reused for a resubmission.
+ */
+export function isOutcomeUnknown(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  return error.code === 'network' || [502, 503, 504].includes(error.status)
+}
+
+/** One instance per page load, outside React state, so a pending key survives navigating between pages. */
+export const orderAttempts = new OrderAttempts()
 
 const fingerprintOf = (input: PlaceOrderInput) =>
   JSON.stringify([input.symbol, input.side, input.type, input.quantity, input.limitPrice ?? null])

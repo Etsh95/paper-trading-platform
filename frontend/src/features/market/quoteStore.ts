@@ -54,15 +54,19 @@ export const quoteStore = {
       })
     }
     if (!changed) return
-    const last = quotes[quotes.length - 1]!
+    // Advance the feed time only from quotes that were actually applied (skipped stale ones don't count).
+    const newest = [...next.values()].reduce((a, b) => (Date.parse(b.timestamp) > Date.parse(a.timestamp) ? b : a))
     emit({
       quotes: next,
-      status: { source: source ?? snapshot.status.source, connected: true, lastQuoteAt: last.timestamp },
+      status: { source: source ?? snapshot.status.source, connected: true, lastQuoteAt: newest.timestamp },
       receivedAt: Date.now(),
     })
   },
 
+  /** Feed status from the REST snapshot. Ignored if it's older than what the live stream already reported. */
   setStatus(status: MarketStatus) {
+    const known = snapshot.status.lastQuoteAt
+    if (known && status.lastQuoteAt && Date.parse(status.lastQuoteAt) < Date.parse(known)) return
     emit({ ...snapshot, status })
   },
 

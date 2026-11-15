@@ -68,4 +68,27 @@ describe('api client session recovery', () => {
 
     expect(sessionsCreated).toBe(2)
   })
+
+  it('a failed "start over" is not later mistaken for the first-ever session', async () => {
+    const { api } = await import('./client')
+    const session = await import('./session')
+    const reasons: string[] = []
+    session.onSessionChange((_, reason) => reasons.push(reason))
+    await api.portfolio() // initial session
+
+    const realFetch = fetch as unknown as (url: string, init?: RequestInit) => Promise<Response>
+    let failNext = true
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/api/sessions') && failNext) {
+        failNext = false
+        return new Response(null, { status: 429 })
+      }
+      return realFetch(url, init)
+    })
+
+    await expect(session.renewSession('created')).rejects.toThrow() // e.g. rate limited
+    await api.portfolio() // creates the new session lazily
+
+    expect(reasons).toEqual(['initial', 'created'])
+  })
 })

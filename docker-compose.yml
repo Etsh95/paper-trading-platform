@@ -1,4 +1,4 @@
-# Runs the whole platform locally: http://localhost:8080
+# Runs the whole platform locally: http://localhost:8080 (API docs: http://localhost:8080/docs)
 #   docker compose up --build
 services:
   api:
@@ -9,8 +9,10 @@ services:
       MarketData__Provider: ${MARKET_DATA_PROVIDER:-Binance}
       # Optional. If unset, the API generates an ephemeral signing key (sessions reset on restart).
       Auth__SigningKey: ${AUTH_SIGNING_KEY:-}
-    ports:
-      - "5080:8080"
+      # nginx is the only way in (no published port), so its X-Forwarded-For is trustworthy: each client gets
+      # its own rate-limit bucket instead of all sharing nginx's address.
+      ForwardedHeaders__TrustProxy: "true"
+    # Deliberately not published: reach the API (and its docs at /docs) through nginx on :8080.
     restart: unless-stopped
 
   web:

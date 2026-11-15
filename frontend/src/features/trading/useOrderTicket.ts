@@ -11,7 +11,7 @@ import { D, placesOf } from '@/shared/lib/decimal'
 import { formatDecimal, formatMoney } from '@/shared/lib/format'
 import { useHubStatus } from '@/shared/realtime/hub'
 import { usePlaceOrder } from './accountQueries'
-import { OrderAttempts } from './orderAttempts'
+import { isOutcomeUnknown, orderAttempts as attempts } from './orderAttempts'
 import { evaluateTicket, quantityForFraction, type TicketContext, type TicketIssue } from './ticketRules'
 
 type Field = 'quantity' | 'limitPrice'
@@ -38,7 +38,6 @@ export function useOrderTicket(symbol: string) {
   const [attempted, setAttempted] = useState(false)
   const quantityRef = useRef<HTMLInputElement>(null)
   const priceRef = useRef<HTMLInputElement>(null)
-  const [attempts] = useState(() => new OrderAttempts())
 
   // Bumped on every edit, so a settling order can tell whether the user has started on the next one.
   const editVersion = useRef(0)
@@ -121,14 +120,16 @@ export function useOrderTicket(symbol: string) {
     const idempotencyKey = attempts.keyFor(input)
     const versionAtSubmit = editVersion.current
     try {
-      const { order } = await place.mutateAsync({ key: idempotencyKey, input })
+      const { order, replayed } = await place.mutateAsync({ key: idempotencyKey, input })
       attempts.settle()
       const params = {
         qty: formatDecimal(order.quantity, language, 0, qtyPlaces),
         asset: instrument.baseAsset,
         price: formatDecimal(order.fillPrice ?? order.limitPrice ?? '0', language, pricePlaces),
       }
-      if (order.status === 'Open') toast(t(side === 'Buy' ? 'toast.limitPlacedBuy' : 'toast.limitPlacedSell', params))
+      // A resubmission after an unknown outcome that the server recognised: no second order was created.
+      if (replayed) toast(t('toast.alreadyPlaced'))
+      else if (order.status === 'Open') toast(t(side === 'Buy' ? 'toast.limitPlacedBuy' : 'toast.limitPlacedSell', params))
       // Fills are announced by the realtime stream; only announce here if it's down.
       else if (order.status === 'Filled' && hub !== 'live') toast.success(t(side === 'Buy' ? 'toast.bought' : 'toast.sold', params))
 
@@ -141,7 +142,7 @@ export function useOrderTicket(symbol: string) {
       }
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'unknown'
-      if (code !== 'network') attempts.settle() // a definitive answer; only network failures leave it unknown
+      if (!isOutcomeUnknown(error)) attempts.settle() // a definitive answer; only an unknown outcome keeps the key
       toast.error(t('toast.rejected'), { description: t(`reasons.${code}`, { defaultValue: t('reasons.unknown') }) })
     }
   }

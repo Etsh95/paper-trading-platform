@@ -15,6 +15,9 @@ type Listener = (session: Session, reason: SessionChangeReason) => void
 
 let current: Session | null = load()
 let pending: Promise<Session> | null = null
+// Why the next session is being created. Kept until creation succeeds, so a failed "start over" or reset
+// isn't later mistaken for the first-ever session.
+let pendingReason: Exclude<SessionChangeReason, 'initial'> | null = null
 const listeners = new Set<Listener>()
 
 function load(): Session | null {
@@ -41,6 +44,7 @@ async function create(reason: SessionChangeReason): Promise<Session> {
   if (!response.ok) throw new Error(`Could not start a session (${response.status})`)
   const session = (await response.json()) as Session
   current = session
+  pendingReason = null
   save(session)
   listeners.forEach((l) => l(session, reason))
   return session
@@ -49,7 +53,7 @@ async function create(reason: SessionChangeReason): Promise<Session> {
 /** Returns the current session, creating an anonymous paper account on first use. */
 export function ensureSession(): Promise<Session> {
   if (current) return Promise.resolve(current)
-  pending ??= create('initial').finally(() => (pending = null))
+  pending ??= create(pendingReason ?? 'initial').finally(() => (pending = null))
   return pending
 }
 
@@ -59,6 +63,7 @@ export function ensureSession(): Promise<Session> {
  */
 export function renewSession(reason: Exclude<SessionChangeReason, 'initial'> = 'reset'): Promise<Session> {
   current = null
+  pendingReason = reason
   pending ??= create(reason).finally(() => (pending = null))
   return pending
 }

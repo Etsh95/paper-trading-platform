@@ -39,6 +39,7 @@ export function startHub(handlers: HubHandlers): () => void {
   let stopped = false
   // Each (re)connect gets a generation; callbacks from superseded connections are ignored.
   let generation = 0
+  let connectedBefore = false
 
   const connect = async () => {
     const gen = ++generation
@@ -76,8 +77,14 @@ export function startHub(handlers: HubHandlers): () => void {
 
       connection = c
       await c.start()
-      if (isCurrent()) setStatus('live')
-      else void c.stop()
+      if (!isCurrent()) {
+        void c.stop()
+        return
+      }
+      setStatus('live')
+      // A full reconnect (after automatic reconnect gave up) missed pushes just like a short drop does.
+      if (connectedBefore) handlers.reconnected()
+      connectedBefore = true
     } catch {
       if (isCurrent()) {
         setStatus('offline')
