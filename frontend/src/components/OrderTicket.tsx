@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { LoaderCircle } from 'lucide-react'
+import { ChevronDown, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -146,18 +146,22 @@ export function OrderTicket({ symbol, onSymbolChange }: { symbol: string; onSymb
         <label htmlFor={ids.symbol} className="sr-only">
           {t('cols.market')}
         </label>
-        <select
-          id={ids.symbol}
-          value={symbol}
-          onChange={(e) => onSymbolChange(e.target.value)}
-          className="rounded-md border border-rule bg-harbor px-2.5 py-1.5 text-sm font-medium"
-        >
-          {instruments?.map((i: Instrument) => (
-            <option key={i.symbol} value={i.symbol}>
-              {i.baseAsset}/{i.quoteAsset}
-            </option>
-          ))}
-        </select>
+        {/* Native arrow hidden (it can't be padded); a chevron at the inline end mirrors correctly in RTL. */}
+        <div className="relative">
+          <select
+            id={ids.symbol}
+            value={symbol}
+            onChange={(e) => onSymbolChange(e.target.value)}
+            className="appearance-none rounded-md border border-rule bg-harbor py-1.5 ps-3 pe-9 text-sm font-medium transition-colors hover:border-muted"
+          >
+            {instruments?.map((i: Instrument) => (
+              <option key={i.symbol} value={i.symbol}>
+                {i.baseAsset}/{i.quoteAsset}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
+        </div>
       </div>
 
       <Segmented
