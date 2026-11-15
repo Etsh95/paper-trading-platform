@@ -1,6 +1,8 @@
 using System.Threading.Channels;
 using Microsoft.AspNetCore.SignalR;
-using PaperTrading.Core.Engine;
+using PaperTrading.Api.Contracts;
+using PaperTrading.Application.Abstractions;
+using PaperTrading.Domain.Matching;
 
 namespace PaperTrading.Api.Realtime;
 
@@ -27,8 +29,8 @@ public sealed class SignalREventSink(IHubContext<MarketHub> hub, ILogger<SignalR
                 var group = hub.Clients.Group(MarketHub.AccountGroup(e.AccountId));
                 await (e switch
                 {
-                    OrderUpdated o => group.SendAsync("orderUpdated", o.Order, stoppingToken),
-                    TradeExecuted t => group.SendAsync("tradeExecuted", t.Trade, stoppingToken),
+                    OrderUpdated o => group.SendAsync("orderUpdated", o.Order.ToResponse(), stoppingToken),
+                    TradeExecuted t => group.SendAsync("tradeExecuted", t.Trade.ToResponse(), stoppingToken),
                     _ => Task.CompletedTask,
                 });
             }

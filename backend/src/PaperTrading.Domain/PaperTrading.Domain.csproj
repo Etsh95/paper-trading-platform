@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The domain has no package references: no framework, no I/O, no serialization concerns. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="PaperTrading.UnitTests" />
+  </ItemGroup>
+</Project>

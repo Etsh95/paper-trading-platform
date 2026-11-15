@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Options;
-using PaperTrading.Api.MarketData;
-using PaperTrading.Core.Domain;
+using PaperTrading.Api.Contracts;
+using PaperTrading.Application.MarketData;
+using PaperTrading.Domain;
 
 namespace PaperTrading.Api.Realtime;
 
@@ -12,14 +12,14 @@ namespace PaperTrading.Api.Realtime;
 public sealed class QuoteBroadcaster(
     QuoteCache cache,
     IHubContext<MarketHub> hub,
-    IOptions<MarketDataOptions> options,
+    RealtimeOptions options,
     TimeProvider time,
     ILogger<QuoteBroadcaster> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var lastSent = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
-        using var timer = new PeriodicTimer(options.Value.BroadcastInterval, time);
+        using var timer = new PeriodicTimer(options.BroadcastInterval, time);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -34,7 +34,7 @@ public sealed class QuoteBroadcaster(
 
             try
             {
-                await hub.Clients.All.SendAsync("quotes", changed, stoppingToken);
+                await hub.Clients.All.SendAsync("quotes", changed.ToResponses(ContractMapping.ToResponse), stoppingToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

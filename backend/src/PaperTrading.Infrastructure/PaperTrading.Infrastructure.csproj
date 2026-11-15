@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\PaperTrading.Application\PaperTrading.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.15" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PaperTrading.UnitTests" />
+  </ItemGroup>
+</Project>
